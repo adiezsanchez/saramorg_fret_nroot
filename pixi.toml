@@ -1,0 +1,43 @@
+[workspace]
+authors = ["adiezsanchez <adiez.biotech@gmail.com>"]
+channels = ["conda-forge", "pytorch", "nvidia"]
+channel-priority = "disabled"
+name = "saramorg_fret_nroot"
+platforms = ["win-64"]
+version = "0.1.0"
+
+# -------------------------
+# Tasks
+# -------------------------
+
+[tasks.lab]
+cmd = "jupyter lab"
+
+[tasks.napari]
+cmd = "napari"
+
+# -------------------------
+# Conda-forge dependencies
+# -------------------------
+
+[dependencies]
+python = "3.10.*" # keep Python compatible with all plugins
+pytorch = "==2.5.0"
+pytorch-cuda = "12.1.*"
+torchvision = "==0.20.0"
+cellpose = "==4.0.6" # CellposeSAM (latest ViT implementation)
+apoc-backend = "*" # fast GPU classifiers (APOC)
+edt = "*" # Euclidean distance transforms
+ipykernel = "*" # Jupyter kernel support
+ipython = "*" # interactive shell
+jupyterlab = "*" # Jupyter environment
+napari = ">=0.6,<0.8" # avoid old 0.4.x runtime-incompatible build
+napari-convpaint = "*" # convpaint plugin
+nbformat = "*" # notebook parsing
+nd2 = "*" # Nikon ND2 image reader
+liffile = "*" # Leica LIF file reader
+plotly = "*" # plotting library
+pyclesperanto-prototype = "*" # GPU image processing (OpenCL)
+pyqt = "*" # GUI backend for napari
+setuptools = "<81" # pin to avoid pkg_resources removal
+seaborn = ">=0.13.2,<0.14"
