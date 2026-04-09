@@ -2,44 +2,52 @@ from pathlib import Path
 import liffile
 
 
-def list_images (directory_path, format):
+def list_images(directory_path: str, file_format: str) -> list:
+    """
+    List all image files in a given directory with the specified format (extension).
 
-    # Create an empty list to store all image filepaths within the dataset directory
+    Args:
+        directory_path (str): Path to the directory to search for image files.
+        file_format (str): File extension (without the dot), e.g. "tif", "png".
+
+    Returns:
+        list: List of image file paths as strings.
+    """
     images = []
 
-    for file_path in directory_path.glob(f"*.{format}"):
+    for file_path in Path(directory_path).glob(f"*.{file_format}"):
         images.append(str(file_path))
-
+        
     return images
 
-def read_image (image, slicing_factor_xy, log=True):
-    """Read raw image microscope files (.lif), apply downsampling if needed and return filename and a numpy array"""
+def extract_pixel_sizes_um(xml_element) -> tuple[float, float, float]:
+    """
+    Extract (x_um, y_um, z_um) from Leica XML metadata.
+    Uses DimensionDescription entries:
+      - DimID 1: X
+      - DimID 2: Y
+      - DimID 3: Z
+    Assumes Unit is meters ('m').
+    """
 
-    # Read path storing raw image and extract filename
-    file_path = Path(image)
-    filename = file_path.stem
+    metadata_dict = liffile.xml2dict(xml_element)
 
-    # Extract file extension
-    extension = file_path.suffix
+    dims = (
+        metadata_dict["Element"]["Data"]["Image"]["ImageDescription"]["Dimensions"]["DimensionDescription"]
+    )
 
-    if extension == ".lif":
-        # Read stack from .nd2 (z, ch, x, y) or (ch, x, y)
-        img = liffile.imread(image)
-        
-    else:
-        print ("Implement new file reader")
+    by_id = {d["DimID"]: d for d in dims}
+    x = by_id[1]
+    y = by_id[2]
+    z = by_id[3]
 
-    # Apply slicing trick to reduce image size (xy resolution)
-    try:
-        img = img[:, ::slicing_factor_xy, ::slicing_factor_xy]
-    except IndexError as e:
-        print(f"Slicing Error: {e}")
-        print(f"Slicing parameters: Slicing_XY:{slicing_factor_xy}")
+    # meters -> micrometers
+    m_to_um = 1e6
 
-    if log:
-        # Feedback for researcher
-        print(f"\nImage analyzed: {filename}")
-        #print(f"Original Array shape: {img.shape}")
-        #print(f"Compressed Array shape: {img.shape}")
+    x_um = (x["Length"] / x["NumberOfElements"]) * m_to_um
+    y_um = (y["Length"] / y["NumberOfElements"]) * m_to_um
 
-    return img, filename
+    # Z spacing is between planes, so divide by (N-1)
+    z_um = (z["Length"] / (z["NumberOfElements"] - 1)) * m_to_um
+
+    return x_um, y_um, z_um
