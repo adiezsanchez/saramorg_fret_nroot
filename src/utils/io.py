@@ -1,6 +1,7 @@
 from pathlib import Path
 import liffile
 import numpy as np
+import tifffile
 
 
 def list_containers(directory_path: str, file_format: str) -> list:
@@ -84,6 +85,43 @@ def load_lif_image(file_path: str, image_index: int) -> tuple["np.ndarray", str,
         xml_metadata = img_obj.xml_element
 
     return img, img_name, xml_metadata 
+
+def ensure_nuclei_labels_output_dir(base_output_dir: str | Path, lif_container_id: str) -> Path:
+    """
+    Create and return the output directory used to store nuclei labels for one .lif container.
+
+    Args:
+        base_output_dir (str | Path): Base output directory.
+        lif_container_id (str): Name of the .lif container without extension.
+
+    Returns:
+        Path: Path to the nuclei-label output directory.
+    """
+    labels_dir = Path(base_output_dir) / "nuclei_labels" / lif_container_id
+    labels_dir.mkdir(parents=True, exist_ok=True)
+
+    if not labels_dir.is_dir():
+        raise NotADirectoryError(f"Could not create nuclei-label directory: {labels_dir}")
+
+    return labels_dir
+
+def load_precomputed_nuclei_labels_if_available(labels_dir: str | Path, image_id: str) -> np.ndarray | None:
+    """
+    Load nuclei labels for one image if they are already stored on disk.
+
+    Args:
+        labels_dir (str | Path): Directory where nuclei labels are stored.
+        image_id (str): Name of the image.
+
+    Returns:
+        np.ndarray | None: Loaded labels when available, otherwise None.
+    """
+    nuclei_labels_path = Path(labels_dir) / f"{image_id}_nuclei_labels.tif"
+
+    if not nuclei_labels_path.is_file():
+        return None
+
+    return tifffile.imread(nuclei_labels_path)
 
 def _extract_pixel_sizes_um(xml_element) -> tuple[float, float, float]:
     """
