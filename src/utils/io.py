@@ -21,7 +21,7 @@ def list_containers(directory_path: str, file_format: str) -> list:
 
     return images
 
-def explore_lif_container(file_path: str, display: bool = False):
+def explore_lif_container(file_path: str, display: bool = False) -> tuple[int, str]:
     """
     Explore a .lif container file and print image metadata (name, dimensions and shape) inside the container.
     This function does not return the container object, it only returns the number of images inside the container.
@@ -31,8 +31,13 @@ def explore_lif_container(file_path: str, display: bool = False):
         display (bool): If True image metadata (name, dimensions and shape) inside the container will be printed.
 
     Returns:
-        int: Number of images inside the container.
+        tuple:
+            - nr_imgs (int): Number of images inside the container.
+            - lif_container_id (str): Name of the .lif container file.
     """
+    # Extract lif_container filename
+    lif_container_id = Path(file_path).stem
+    
     # Read a single .lif container
     with liffile.LifFile(file_path) as lif_container:
 
@@ -43,9 +48,9 @@ def explore_lif_container(file_path: str, display: bool = False):
                 print(f"Image name: {img.name}, Dimensions: {img.dims}, Array Shape: {img.shape}")
 
         # Store number of images inside the container
-        img_nr = len(lif_container.images)
+        nr_imgs = len(lif_container.images)
 
-    return img_nr
+    return nr_imgs, lif_container_id
 
 def load_lif_image(file_path: str, image_index: int) -> tuple["np.ndarray", str, object]:
     """
