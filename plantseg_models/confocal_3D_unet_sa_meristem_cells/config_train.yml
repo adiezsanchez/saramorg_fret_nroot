@@ -1,0 +1,278 @@
+# use a fixed random seed to guarantee that when you run the code twice you will get the same outcome
+manual_seed: 0
+model:
+  name: UNet3D
+  # number of input channels to the model
+  in_channels: 1
+  # number of output channels
+  out_channels: 1
+  # determines the order of operators in a single layer (crg - Conv3d+ReLU+GroupNorm)
+  layer_order: gcr
+  # initial number of feature maps
+  f_maps: 32
+  # number of groups in the groupnorm
+  num_groups: 8
+  # apply element-wise nn.Sigmoid after the final 1x1x1 convolution, otherwise apply nn.Softmax
+  final_sigmoid: true
+# loss function to be used during training
+loss:
+  name: BCEDiceLoss
+  # a target value that is ignored and does not contribute to the input gradient
+  ignore_index: null
+  # skip the last channel in the target (i.e. when last channel contains data not relevant for the loss)
+  skip_last_target: true
+optimizer:
+  # initial learning rate
+  learning_rate: 0.0002
+  # weight decay
+  weight_decay: 0.00001
+# evaluation metric
+eval_metric:
+  # use AdaptedRandError metric
+  name: BoundaryAdaptedRandError
+  # probability maps threshold
+  threshold: 0.4
+  # use the last target channel to compute the metric
+  use_last_target: true
+  # use only the first channel for computing the metric
+  use_first_input: true
+lr_scheduler:
+  name: ReduceLROnPlateau
+  # make sure to use the 'min' mode cause lower AdaptedRandError is better
+  mode: min
+  factor: 0.5
+  patience: 30
+trainer:
+  # model with lower eval score is considered better
+  eval_score_higher_is_better: False
+  # path to the checkpoint directory
+  checkpoint_dir: './'
+  # path to latest checkpoint; if provided the training will be resumed from that checkpoint
+  resume: null
+  # how many iterations between validations
+  validate_after_iters: 500
+  # how many iterations between tensorboard logging
+  log_after_iters: 100
+  # max number of epochs
+  epochs: 1000
+  # max number of iterations
+  iters: 150000
+# Configure training and validation loaders
+loaders:
+  # how many subprocesses to use for data loading
+  num_workers: 8
+  # path to the raw data within the H5
+  raw_internal_path: /raw
+  # path to the the label data withtin the H5
+  label_internal_path: /label
+  # configuration of the train loader
+  train:
+    # paths to the training datasets
+    file_paths:
+      - '../../train/0hrs_plant13_trim-acylYFP.h5'
+      - '../../train/28hrs_plant15_trim-acylYFP.h5'
+      - '../../train/48hrs_plant1_trim-acylYFP.h5'
+      - '../../train/68hrs_plant1_trim-acylYFP.h5'
+      - '../../train/0hrs_plant15_trim-acylYFP.h5'
+      - '../../train/28hrs_plant18_trim-acylYFP.h5'
+      - '../../train/48hrs_plant2_trim-acylYFP.h5'
+      - '../../train/68hrs_plant2_trim-acylYFP.h5'
+      - '../../train/0hrs_plant1_trim-acylYFP.h5'
+      - '../../train/28hrs_plant2_trim-acylYFP.h5'
+      - '../../train/4hrs_plant18_trim-acylYFP.h5'
+      - '../../train/68hrs_plant4_trim-acylYFP.h5'
+      - '../../train/0hrs_plant2_trim-acylYFP.h5'
+      - '../../train/28hrs_plant4_trim-acylYFP.h5'
+      - '../../train/4hrs_plant1_trim-acylYFP.h5'
+      - '../../train/72hrs_plant15_trim-acylYFP.h5'
+      - '../../train/0hrs_plant4_trim-acylYFP.h5'
+      - '../../train/32hrs_plant13_trim-acylYFP.h5'
+      - '../../train/4hrs_plant2_trim-acylYFP.h5'
+      - '../../train/72hrs_plant18_trim-acylYFP.h5'
+      - '../../train/12hrs_plant13_trim-acylYFP.h5'
+      - '../../train/32hrs_plant18_trim-acylYFP.h5'
+      - '../../train/4hrs_plant4_trim-acylYFP.h5'
+      - '../../train/72hrs_plant1_trim-acylYFP.h5'
+      - '../../train/12hrs_plant15_trim-acylYFP.h5'
+      - '../../train/32hrs_plant1_trim-acylYFP.h5'
+      - '../../train/52hrs_plant15_trim-acylYFP.h5'
+      - '../../train/72hrs_plant4_trim-acylYFP.h5'
+      - '../../train/12hrs_plant18_trim-acylYFP.h5'
+      - '../../train/32hrs_plant2_trim-acylYFP.h5'
+      - '../../train/52hrs_plant18_trim-acylYFP.h5'
+      - '../../train/76hrs_plant13_trim-acylYFP.h5'
+      - '../../train/12hrs_plant1_trim-acylYFP.h5'
+      - '../../train/32hrs_plant4_trim-acylYFP.h5'
+      - '../../train/52hrs_plant1_trim-acylYFP.h5'
+      - '../../train/76hrs_plant18_trim-acylYFP.h5'
+      - '../../train/12hrs_plant2_trim-acylYFP.h5'
+      - '../../train/36hrs_plant13_trim-acylYFP.h5'
+      - '../../train/52hrs_plant2_trim-acylYFP.h5'
+      - '../../train/76hrs_plant1_trim-acylYFP.h5'
+      - '../../train/16hrs_plant15_trim-acylYFP.h5'
+      - '../../train/36hrs_plant15_trim-acylYFP.h5'
+      - '../../train/52hrs_plant4_trim-acylYFP.h5'
+      - '../../train/76hrs_plant2_trim-acylYFP.h5'
+      - '../../train/16hrs_plant18_trim-acylYFP.h5'
+      - '../../train/36hrs_plant18_trim-acylYFP.h5'
+      - '../../train/56hrs_plant15_trim-acylYFP.h5'
+      - '../../train/76hrs_plant4_trim-acylYFP.h5'
+      - '../../train/16hrs_plant2_trim-acylYFP.h5'
+      - '../../train/36hrs_plant2_trim-acylYFP.h5'
+      - '../../train/56hrs_plant18_trim-acylYFP.h5'
+      - '../../train/80hrs_plant13_trim-acylYFP.h5'
+      - '../../train/20hrs_plant13_trim-acylYFP.h5'
+      - '../../train/36hrs_plant4_trim-acylYFP.h5'
+      - '../../train/56hrs_plant1_trim-acylYFP.h5'
+      - '../../train/80hrs_plant15_trim-acylYFP.h5'
+      - '../../train/20hrs_plant15_trim-acylYFP.h5'
+      - '../../train/40hrs_plant13_trim-acylYFP.h5'
+      - '../../train/60hrs_plant18_trim-acylYFP.h5'
+      - '../../train/80hrs_plant18_trim-acylYFP.h5'
+      - '../../train/20hrs_plant18_trim-acylYFP.h5'
+      - '../../train/40hrs_plant4_trim-acylYFP.h5'
+      - '../../train/60hrs_plant1_trim-acylYFP.h5'
+      - '../../train/84hrs_plant13_trim-acylYFP_improved.h5'
+      - '../../train/20hrs_plant2_trim-acylYFP.h5'
+      - '../../train/44hrs_plant13_trim-acylYFP.h5'
+      - '../../train/60hrs_plant2_trim-acylYFP.h5'
+      - '../../train/84hrs_plant15_trim-acylYFP.h5'
+      - '../../train/24hrs_plant13_trim-acylYFP.h5'
+      - '../../train/44hrs_plant15_trim-acylYFP.h5'
+      - '../../train/60hrs_plant4_trim-acylYFP.h5'
+      - '../../train/8hrs_plant13_trim-acylYFP.h5'
+      - '../../train/24hrs_plant15_trim-acylYFP.h5'
+      - '../../train/44hrs_plant18_trim-acylYFP.h5'
+      - '../../train/64hrs_plant2_trim-acylYFP.h5'
+      - '../../train/8hrs_plant18_trim-acylYFP.h5'
+      - '../../train/24hrs_plant18_trim-acylYFP.h5'
+      - '../../train/44hrs_plant2_trim-acylYFP.h5'
+      - '../../train/64hrs_plant4_trim-acylYFP.h5'
+      - '../../train/8hrs_plant1_trim-acylYFP.h5'
+      - '../../train/24hrs_plant2_trim-acylYFP.h5'
+      - '../../train/44hrs_plant4_trim-acylYFP.h5'
+      - '../../train/68hrs_plant13_trim-acylYFP.h5'
+      - '../../train/8hrs_plant4_trim-acylYFP.h5'
+      - '../../train/24hrs_plant4_trim-acylYFP.h5'
+      - '../../train/48hrs_plant13_trim-acylYFP.h5'
+      - '../../train/68hrs_plant15_trim-acylYFP.h5'
+      - '../../train/28hrs_plant13_trim-acylYFP.h5'
+      - '../../train/48hrs_plant18_trim-acylYFP.h5'
+      - '../../train/68hrs_plant18_trim-acylYFP.h5'
+      - '../../test/0hrs_plant18_trim-acylYFP.h5'
+      - '../../test/40hrs_plant15_trim-acylYFP.h5'
+      - '../../test/60hrs_plant13_trim-acylYFP.h5'
+      - '../../test/72hrs_plant2_trim-acylYFP.h5'
+      - '../../test/12hrs_plant4_trim-acylYFP.h5'
+      - '../../test/40hrs_plant1_trim-acylYFP.h5'  
+      - '../../test/60hrs_plant15_trim-acylYFP.h5'
+      - '../../test/76hrs_plant15_trim-acylYFP.h5'
+      - '../../test/16hrs_plant13_trim-acylYFP.h5'
+      - '../../test/44hrs_plant1_trim-acylYFP.h5'
+      - '../../test/64hrs_plant13_trim-acylYFP.h5'
+      - '../../test/84hrs_plant18_trim-acylYFP.h5'
+      - '../../test/16hrs_plant4_trim-acylYFP.h5'
+      - '../../test/48hrs_plant15_trim-acylYFP.h5'
+      - '../../test/64hrs_plant15_trim-acylYFP.h5'
+      - '../../test/8hrs_plant15_trim-acylYFP.h5'
+      - '../../test/24hrs_plant1_trim-acylYFP.h5'
+      - '../../test/4hrs_plant13_trim-acylYFP.h5'  
+      - '../../test/64hrs_plant18_trim-acylYFP.h5'
+      - '../../test/28hrs_plant1_trim-acylYFP.h5' 
+      - '../../test/56hrs_plant2_trim-acylYFP.h5'  
+      - '../../test/64hrs_plant1_trim-acylYFP.h5'
+      - '../../test/32hrs_plant15_trim-acylYFP.h5'  
+      - '../../test/56hrs_plant4_trim-acylYFP.h5'
+      - '../../test/72hrs_plant13_trim-acylYFP.h5'
+
+
+    # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
+    slice_builder:
+      name: FilterSliceBuilder
+      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+      patch_shape: [80, 170, 170]
+      # train stride between patches
+      stride_shape: [20, 40, 40]
+      # minimum volume of the labels in the patch
+      threshold: 0.6
+      # probability of accepting patches which do not fulfil the threshold criterion
+      slack_acceptance: 0.01
+
+    transformer:
+      raw:
+        - name: Standardize
+        - name: RandomFlip
+        - name: RandomRotate90
+        - name: RandomRotate
+          # rotate only in ZY plane due to anisotropy
+          axes: [[2, 1]]
+          angle_spectrum: 15
+          mode: reflect
+        - name: ElasticDeformation
+          spline_order: 3
+        - name: AdditiveGaussianNoise
+          execution_probability: 0.25
+        - name: AdditivePoissonNoise
+          execution_probability: 0.25
+        - name: ToTensor
+          expand_dims: true
+      label:
+        - name: RandomFlip
+        - name: RandomRotate90
+        - name: RandomRotate
+          # rotate only in ZY plane due to anisotropy
+          axes: [[2, 1]]
+          angle_spectrum: 15
+          mode: reflect
+        - name: ElasticDeformation
+          spline_order: 0
+        - name: StandardLabelToBoundary
+          # append original ground truth labels to the last channel (to be able to compute the eval metric)
+          append_label: true
+          # guassian blur and threshold the boundary map in order to help with overfitting
+          blur: true
+          # stddev of Gaussian kernel
+          sigma: 1.0
+        - name: ToTensor
+          expand_dims: false
+
+  # configuration of the val loader
+  val:
+    # paths to the val datasets
+    file_paths:
+      - '../../val/16hrs_plant1_trim-acylYFP.h5'
+      - '../../val/36hrs_plant1_trim-acylYFP.h5'
+      - '../../val/4hrs_plant15_trim-acylYFP.h5'
+      - '../../val/8hrs_plant2_trim-acylYFP.h5'
+      - '../../val/20hrs_plant1_trim-acylYFP.h5'
+      - '../../val/40hrs_plant2_trim-acylYFP.h5'
+      - '../../val/52hrs_plant13_trim-acylYFP.h5'
+      - '../../val/20hrs_plant4_trim-acylYFP.h5'
+      - '../../val/48hrs_plant4_trim-acylYFP.h5'
+      - '../../val/56hrs_plant13_trim-acylYFP.h5'
+
+    # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
+    slice_builder:
+      name: FilterSliceBuilder
+      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+      patch_shape: [80, 170, 170]
+      # train stride between patches
+      stride_shape: [80, 170, 170]
+      # minimum volume of the labels in the patch
+      threshold: 0.6
+      # probability of accepting patches which do not fulfil the threshold criterion
+      slack_acceptance: 0.01
+
+    # data augmentation
+    transformer:
+      raw:
+        - name: Standardize
+        - name: ToTensor
+          expand_dims: true
+      label:
+        - name: StandardLabelToBoundary
+          append_label: true
+          blur: true
+          sigma: 1.0
+        - name: ToTensor
+          expand_dims: false
