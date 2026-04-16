@@ -3,13 +3,55 @@ from typing import Iterable
 import numpy as np
 import torch
 import yaml
-from src.utils.model import UNet2D, UNet3D
+from utils.model import UNet2D, UNet3D
 
 
 MODEL_REGISTRY = {
     "UNet3D": UNet3D,
     "UNet2D": UNet2D,
 }
+
+
+def _remap_state_dict_for_model(
+    state: dict[str, torch.Tensor], model: torch.nn.Module
+) -> dict[str, torch.Tensor]:
+    """
+    Handle minor checkpoint naming drifts across PanSeg/pytorch3dunet variants.
+
+    Example seen in the wild:
+      - checkpoint keys: ...basic_module.SingleConv1...
+      - model keys:      ...basic_module.single_conv1...
+    """
+    model_keys = set(model.state_dict().keys())
+    state_keys = set(state.keys())
+
+    remap_pairs = (
+        ("SingleConv1", "single_conv1"),
+        ("SingleConv2", "single_conv2"),
+    )
+
+    def _apply_pairs(keys: set[str], pairs: tuple[tuple[str, str], ...]) -> set[str]:
+        out = set()
+        for k in keys:
+            kk = k
+            for src, dst in pairs:
+                kk = kk.replace(src, dst)
+            out.add(kk)
+        return out
+
+    baseline_overlap = len(model_keys.intersection(state_keys))
+    remapped_overlap = len(model_keys.intersection(_apply_pairs(state_keys, remap_pairs)))
+
+    if remapped_overlap > baseline_overlap:
+        remapped_state = {}
+        for k, v in state.items():
+            kk = k
+            for src, dst in remap_pairs:
+                kk = kk.replace(src, dst)
+            remapped_state[kk] = v
+        return remapped_state
+
+    return state
 
 
 def fix_layout_to_zyx(data: np.ndarray, input_layout: str) -> np.ndarray:
@@ -121,6 +163,7 @@ def load_model_from_folder(model_dir: str | Path, device: str = "cuda"):
     state = torch.load(weights_path, map_location="cpu")
     if isinstance(state, dict) and "model_state_dict" in state:
         state = state["model_state_dict"]
+    state = _remap_state_dict_for_model(state, model)
     model.load_state_dict(state)
 
     model.eval().to(device)
