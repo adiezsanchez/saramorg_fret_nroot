@@ -110,23 +110,25 @@ def ensure_output_dir(
 
     return results_dir
 
-def load_precomputed_nuclei_labels_if_available(labels_dir: str | Path, image_id: str) -> np.ndarray | None:
+def load_precomputed_results_if_available(results_dir: str | Path, image_id: str, results_type: str) -> np.ndarray | None:
     """
-    Load nuclei labels for one image if they are already stored on disk.
+    Load precomputed np.array results for one image if they are already stored on disk (as .tif).
 
     Args:
         labels_dir (str | Path): Directory where nuclei labels are stored.
         image_id (str): Name of the image.
+        results_type (str): Precomputed results being loaded, match results_type from ensure_output_directory.
+        (e.g. "nuclei_labels", "root_mask", "depth_map")
 
     Returns:
-        np.ndarray | None: Loaded labels when available, otherwise None.
+        np.ndarray | None: Loaded results when available, otherwise None.
     """
-    nuclei_labels_path = Path(labels_dir) / f"{image_id}_nuclei_labels.tif"
+    precomputed_results_path = Path(results_dir) / f"{image_id}_{results_type}.tif"
 
-    if not nuclei_labels_path.is_file():
+    if not precomputed_results_path.is_file():
         return None
 
-    return tifffile.imread(nuclei_labels_path)
+    return tifffile.imread(precomputed_results_path)
 
 def _extract_pixel_sizes_um(xml_element) -> tuple[float, float, float]:
     """
