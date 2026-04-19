@@ -28,6 +28,8 @@ def calculate_distance_to_root_surface(nuclei_labels, root_3d_mask, visualize=Fa
         nuclei_labels (np.ndarray): 3D label array of nuclei (Z, Y, X).
         root_3d_mask (np.ndarray): Boolean 3D mask (Z, Y, X) of the root body.
         visualize (bool, optional): If True, display the normalized depth map in Napari.
+        viewer (optional): Napari ``Viewer`` instance. If ``visualize`` is True and this is omitted,
+            the current viewer (if any) is used, otherwise a new ``napari.Viewer()`` is created.
 
     Returns:
         np.ndarray: 3D array (same shape as input) with normalized per-nucleus depth values; zero outside labeled regions.
