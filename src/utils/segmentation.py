@@ -7,6 +7,13 @@ from skimage.measure import label
 
 io.logger_setup()  # run this to get printing of progress
 
+# Check if notebook has GPU access
+if core.use_gpu() == False:
+    raise ImportError("No GPU access, change your runtime")
+
+# Load CellposeSAM model
+model = models.CellposeModel(gpu=True)
+
 
 def _resolve_napari_viewer(viewer):
     """
@@ -23,14 +30,6 @@ def _resolve_napari_viewer(viewer):
     if v is not None:
         return v
     return napari.Viewer()
-
-
-# Check if notebook has GPU access
-if core.use_gpu() == False:
-    raise ImportError("No GPU access, change your runtime")
-
-# Load CellposeSAM model
-model = models.CellposeModel(gpu=True)
 
 def predict_nuclei_labels(image: np.ndarray, rescale_factor: float, nuclei_channel: int) -> np.ndarray:
     """
@@ -316,14 +315,14 @@ def smooth_outer_root_surface_3d(
     Returns:
         np.ndarray: Boolean 3D mask representing the smoothed root (same shape as input).
     """
-    # @root_segmentation.ipynb (13-2) -- Erode the root mask to eliminate thin surface structures and shrink mask slightly.
+    # Erode the root mask to eliminate thin surface structures and shrink mask slightly
     eroded_root_3d = binary_erosion(filled_root_3d, footprint=ball(erosion))
 
-    # @root_segmentation.ipynb (13-3,4) -- Smooth outer surface by closing small gaps, then remove small bulges with opening.
+    # Smooth outer surface by closing small gaps, then remove small bulges with opening
     smooth_mask = binary_closing(eroded_root_3d, ball(smoothing))
     smooth_mask = binary_opening(smooth_mask, ball(smoothing))
 
-    # @root_segmentation.ipynb (13-6) -- Optionally visualize masks in napari viewer for user validation.
+    # Optionally visualize masks in napari viewer for user validation.
     if visualize:
         v = _resolve_napari_viewer(viewer)
         v.add_image(eroded_root_3d, name="eroded_root_3d", colormap="gray", blending="additive", opacity=0.8)
