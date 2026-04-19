@@ -31,7 +31,7 @@ def _resolve_napari_viewer(viewer):
         return v
     return napari.Viewer()
 
-def predict_nuclei_labels(image: np.ndarray, rescale_factor: float, nuclei_channel: int) -> np.ndarray:
+def predict_nuclei_labels(image: np.ndarray, rescale_factor: float, nuclei_channel: int, visualize=False, viewer=None) -> np.ndarray:
     """
     Predict nuclei labels using CellposeSAM using anisotropy correction.
 
@@ -39,12 +39,20 @@ def predict_nuclei_labels(image: np.ndarray, rescale_factor: float, nuclei_chann
         image (np.ndarray): Image to predict nuclei labels from.
         rescale_factor (float): Rescale factor to apply to the Z-axis for isotropic scaling (z_um / mean([x_um, y_um])).
         nuclei_channel (int): Channel index of the nuclei channel in the image.
+        visualize (bool, optional): If True, display the predicted nuclei labels in Napari.
+        viewer (optional): Napari ``Viewer`` instance. If ``visualize`` is True and this is omitted,
+            the current viewer (if any) is used, otherwise a new ``napari.Viewer()`` is created.
 
     Returns:
         np.ndarray: Nuclei labels.
     """
 
     nuclei_labels, _ , _ = model.eval(image[nuclei_channel], do_3D=True, anisotropy=rescale_factor, z_axis=0, niter=1000)
+
+    # Display the resulting nuclei labels in Napari if requested.
+    if visualize:
+        v = _resolve_napari_viewer(viewer)
+        v.add_labels(nuclei_labels)
 
     return nuclei_labels
 
