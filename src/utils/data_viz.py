@@ -26,7 +26,7 @@ def map_df_column_to_labels(
     normalize: bool = False,
     clip_percentiles: Optional[Tuple[float, float]] = (1, 99),
     background_value: float = 0.0,
-    colormap: str = "turbo ",   
+    colormap: str = "turbo",   
     visualize: bool = False,
     viewer=None,
     layer_name: Optional[str] = None,
