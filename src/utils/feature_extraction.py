@@ -18,6 +18,50 @@ def _resolve_napari_viewer(viewer):
         return v
     return napari.Viewer()
 
+def _flood_fill_planes_below_threshold(
+    mask_3d: np.ndarray, ratio_threshold: float = 0.7
+) -> tuple[np.ndarray, bool, list[int]]:
+    """
+    Fill weakly populated planes in the final 15% of the stack.
+
+    For planes in the last 15% of Z, if
+    ``(true_pixels_plane / max_true_pixels_all_planes) < ratio_threshold``,
+    replace that plane with the shape from the most filled plane.
+
+    Args:
+        mask_3d (np.ndarray): 3D boolean array.
+        ratio_threshold (float, optional): Fill threshold ratio. Defaults to 0.7.
+
+    Returns:
+        tuple[np.ndarray, bool, list[int]]:
+            - Updated mask
+            - ``is_flooded`` (True if any plane was filled)
+            - ``filled_planes`` (indices of planes that were filled)
+    """
+    mask_3d_filled = mask_3d.copy()
+    n_planes = mask_3d.shape[0]
+    true_counts = np.count_nonzero(mask_3d, axis=(1, 2))
+    max_true_pixels = true_counts.max()
+
+    if max_true_pixels == 0:
+        return mask_3d_filled, False, []
+
+    ratios = true_counts / max_true_pixels
+    n_last_planes = max(1, int(np.ceil(n_planes * 0.15)))
+    last_planes = np.arange(n_planes - n_last_planes, n_planes)
+    failing_planes = [plane for plane in last_planes if ratios[plane] < ratio_threshold]
+
+    if not failing_planes:
+        return mask_3d_filled, False, []
+
+    best_plane_idx = int(np.argmax(true_counts))
+    best_plane_shape = mask_3d[best_plane_idx]
+
+    for plane_idx in failing_planes:
+        mask_3d_filled[plane_idx] = best_plane_shape
+
+    return mask_3d_filled, True, failing_planes
+
 def _pad_half_root(root_3d_mask: np.ndarray) -> np.ndarray:
     """
     Pads the root 3D mask with a border of zeros everywhere EXCEPT on the last Z slice (middle of the root).
@@ -74,7 +118,7 @@ def calculate_distance_to_root_surface(
     pad_full_root: bool = False,
     visualize: bool = False,
     viewer=None
-) -> np.ndarray:
+) -> tuple[np.ndarray, bool, list[int]]:
     """
     Calculate a normalized distance map from the root surface and assign a depth value to each nucleus label, based on its centroid.
 
@@ -92,12 +136,21 @@ def calculate_distance_to_root_surface(
             the current viewer (if any) is used, otherwise a new ``napari.Viewer()`` is created.
 
     Returns:
-        np.ndarray: 3D array (same shape as input) with normalized per-nucleus depth values; zero outside labeled regions.
+        tuple[np.ndarray, bool, list[int]]:
+            - 3D array with normalized per-nucleus depth values (zero outside labels)
+            - ``is_flooded`` indicating if tail planes were flood-filled
+            - ``flooded_planes`` containing indices of flood-filled planes
     """
     # Choose padding strategy depending on root type (full or half cone)
     if pad_full_root:
         dist_map = _pad_full_root(root_3d_mask)
+        is_flooded = False
+        flooded_planes = []
     else:
+        # Compensate for truncated tails before half-root padding.
+        root_3d_mask, is_flooded, flooded_planes = _flood_fill_planes_below_threshold(
+            root_3d_mask
+        )
         dist_map = _pad_half_root(root_3d_mask)
 
     # Normalize distances by the maximum value inside the root (approximate root radius).
@@ -135,4 +188,4 @@ def calculate_distance_to_root_surface(
         v = _resolve_napari_viewer(viewer)
         v.add_image(depth_image, name="nuclei_depth_normalized", colormap="viridis", blending="additive")
 
-    return depth_image
+    return depth_image, is_flooded, flooded_planes
