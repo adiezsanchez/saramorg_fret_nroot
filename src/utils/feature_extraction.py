@@ -1,6 +1,32 @@
 import numpy as np
+import pandas as pd
 from scipy.ndimage import distance_transform_edt
-from skimage.measure import regionprops
+from skimage.measure import regionprops, regionprops_table
+
+
+MORPHOLOGY_PROPERTIES = [
+    "label",
+    "area",
+    "area_bbox",
+    "area_convex",
+    "area_filled",
+    "axis_major_length",
+    "axis_minor_length",
+    "equivalent_diameter_area",
+    "euler_number",
+    "extent",
+    "feret_diameter_max",
+    "solidity",
+    "inertia_tensor_eigvals",
+]
+
+INTENSITY_PROPERTIES = [
+    "label",
+    "intensity_mean",
+    "intensity_min",
+    "intensity_max",
+    "intensity_std",
+]
 
 def _resolve_napari_viewer(viewer):
     """
@@ -189,3 +215,98 @@ def calculate_distance_to_root_surface(
         v.add_image(depth_image, name="nuclei_depth_normalized", colormap="viridis", blending="additive")
 
     return depth_image, is_flooded, flooded_planes
+
+def extract_nuclei_features_per_marker(
+    nuclei_labels: np.ndarray,
+    lif_image: np.ndarray,
+    markers: list[tuple[str, int]],
+    descriptor_dict: dict[str, str | int | float | bool],
+) -> pd.DataFrame:
+    """
+    Extract morphology and per-marker intensity features for each nucleus label.
+
+    The function computes a base morphology table from ``nuclei_labels`` using
+    ``MORPHOLOGY_PROPERTIES`` and then appends per-channel intensity statistics for
+    all markers except ``"brightfield"`` using ``INTENSITY_PROPERTIES``.
+    Descriptor metadata are inserted as leading columns in the returned dataframe.
+
+    Args:
+        nuclei_labels (np.ndarray): 3D label image where each nucleus has a unique integer label.
+        lif_image (np.ndarray): Multichannel image array indexed as ``lif_image[channel]``.
+        markers (list[tuple[str, int]]): Marker definitions as ``(marker_name, channel_index)``.
+        descriptor_dict (dict[str, str | int | float | bool]): Metadata values to prepend as columns.
+
+    Returns:
+        pd.DataFrame: Per-nucleus feature table containing morphology, per-marker
+            intensity features, and descriptor metadata.
+    """
+    props_morphology = regionprops_table(
+        label_image=nuclei_labels,
+        properties=MORPHOLOGY_PROPERTIES,
+    )
+    props_df = pd.DataFrame(props_morphology)
+
+    for marker_name, ch_nr in markers:
+        if marker_name == "brightfield":
+            continue
+
+        props = regionprops_table(
+            label_image=nuclei_labels,
+            intensity_image=lif_image[ch_nr],
+            properties=INTENSITY_PROPERTIES,
+        )
+        intensity_df = pd.DataFrame(props)
+
+        rename_map = {"label": "label"}
+        for prop in INTENSITY_PROPERTIES:
+            if prop == "label":
+                continue
+            if prop.startswith("intensity_"):
+                suffix = prop.replace("intensity_", "")
+                rename_map[prop] = f"{marker_name}_{suffix}_int"
+
+        intensity_df.rename(columns=rename_map, inplace=True)
+        props_df = props_df.merge(intensity_df, on="label")
+
+    insertion_position = 0
+    for key, value in descriptor_dict.items():
+        props_df.insert(insertion_position, key, value)
+        insertion_position += 1
+
+    return props_df
+
+def extract_nuclei_depth(
+    nuclei_labels: np.ndarray,
+    nuclei_depth_map: np.ndarray
+) -> pd.DataFrame:
+    """
+    Extracts the depth value of each nucleus from the provided depth map.
+
+    For each nucleus labeled in the `nuclei_labels` array, this function computes the mean intensity 
+    (depth) from the corresponding region in the `nuclei_depth_map` and returns a DataFrame 
+    containing label and depth columns.
+
+    Args:
+        nuclei_labels (np.ndarray): 3D array with unique integer labels for each nucleus.
+        nuclei_depth_map (np.ndarray): 3D array of the same shape as `nuclei_labels`,
+            containing the per-voxel depth value (0-1, normalized).
+
+    Returns:
+        pd.DataFrame: DataFrame with columns "label" and "depth", one row per nucleus.
+    """
+    # Calculate the mean depth for each label (nucleus).
+    # All pixels in each nucleus labels have the same depth value, so we can use the mean intensity.
+    depth_props = regionprops_table(
+        label_image=nuclei_labels,
+        intensity_image=nuclei_depth_map,
+        properties=["label", "intensity_mean"],
+    )
+
+    # Convert the dictionary output from regionprops_table to a pandas DataFrame.
+    depth_df = pd.DataFrame(depth_props)
+
+    # Rename the "intensity_mean" column to "depth" for clarity.
+    depth_df.rename(columns={"intensity_mean": "depth"}, inplace=True)
+
+    # Return the DataFrame, which now provides the mean depth value for each nucleus label.
+    return depth_df
