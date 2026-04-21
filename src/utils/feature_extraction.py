@@ -240,39 +240,56 @@ def extract_nuclei_features_per_marker(
         pd.DataFrame: Per-nucleus feature table containing morphology, per-marker
             intensity features, and descriptor metadata.
     """
+    # Compute base morphology properties table for each nucleus
     props_morphology = regionprops_table(
         label_image=nuclei_labels,
         properties=MORPHOLOGY_PROPERTIES,
     )
+    # Convert the properties dictionary to a DataFrame
     props_df = pd.DataFrame(props_morphology)
 
+    # Iterate over all markers to extract intensity features
     for marker_name, ch_nr in markers:
+        # Skip the brightfield marker (no intensity features required)
         if marker_name == "brightfield":
             continue
 
+        # Compute intensity features for this marker channel
         props = regionprops_table(
             label_image=nuclei_labels,
-            intensity_image=lif_image[ch_nr],
+            intensity_image=lif_image[ch_nr],  # The marker's image channel
             properties=INTENSITY_PROPERTIES,
         )
         intensity_df = pd.DataFrame(props)
 
+        # Construct a renaming map for the intensity columns to include the marker's name
         rename_map = {"label": "label"}
         for prop in INTENSITY_PROPERTIES:
             if prop == "label":
                 continue
+            # For each intensity property, add the marker_name as a prefix
             if prop.startswith("intensity_"):
                 suffix = prop.replace("intensity_", "")
                 rename_map[prop] = f"{marker_name}_{suffix}_int"
 
+        # Rename columns in the intensity DataFrame
         intensity_df.rename(columns=rename_map, inplace=True)
+        # Merge the current marker's intensity features into the main DataFrame
         props_df = props_df.merge(intensity_df, on="label")
 
+        # Derived columns section (per-marker columns like markerX_sum_int)
+        mean_col = rename_map["intensity_mean"]
+        area_col = "area"
+        # Calculate total marker content per cell (mean_intensity * area)
+        props_df[f"{marker_name}_sum_int"] = props_df[mean_col] * props_df[area_col]
+
+    # Insert metadata columns at the beginning of the DataFrame, preserving input order
     insertion_position = 0
     for key, value in descriptor_dict.items():
         props_df.insert(insertion_position, key, value)
         insertion_position += 1
 
+    # Return the final DataFrame with morphology, marker intensity features, and metadata
     return props_df
 
 def extract_nuclei_depth(
