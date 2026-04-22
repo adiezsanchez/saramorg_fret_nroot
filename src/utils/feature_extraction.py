@@ -6,6 +6,7 @@ from skimage.measure import regionprops, regionprops_table
 
 MORPHOLOGY_PROPERTIES = [
     "label",
+    "centroid",
     "area",
     "area_bbox",
     "area_convex",
