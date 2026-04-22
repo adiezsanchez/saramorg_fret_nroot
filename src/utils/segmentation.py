@@ -32,6 +32,53 @@ def _resolve_napari_viewer(viewer):
         return v
     return napari.Viewer()
 
+def _remove_labels_touching_longest_axis_extremes(labels: np.ndarray) -> np.ndarray:
+    """
+    Remove connected-component labels that touch either extreme face of the
+    longest in-plane axis (y or x) in a 3D label volume.
+
+    Args:
+        labels (np.ndarray): 3D labeled array (shape: (z, y, x)), where each unique
+            integer (>0) identifies an object and 0 is background.
+
+    Returns:
+        np.ndarray: Labeled array of same shape as input, with labels touching the
+            extreme faces along the longest in-plane axis (y or x) set to 0.
+            Label IDs for remaining components are preserved (no relabeling).
+    """
+    if labels.ndim != 3:
+        raise ValueError("Input must be a 3D array with shape (z, y, x).")
+
+    # Unpack the shape to retrieve dimensions
+    _, y_dim, x_dim = labels.shape
+
+    # Determine the longest in-plane axis (1 -> y, 2 -> x)
+    # If dimensions are equal, uses x by default
+    axis = 2 if x_dim >= y_dim else 1
+
+    # Extract the two extreme faces along the identified axis
+    if axis == 2:
+        # If longest is x-axis
+        face_min = labels[:, :, 0]      # face at x=0
+        face_max = labels[:, :, -1]     # face at x=max
+    else:
+        # If longest is y-axis
+        face_min = labels[:, 0, :]      # face at y=0
+        face_max = labels[:, -1, :]     # face at y=max
+
+    # Find all unique label values present on either extreme face (excluding background 0)
+    labels_to_remove = np.unique(np.concatenate((face_min.ravel(), face_max.ravel())))
+    labels_to_remove = labels_to_remove[labels_to_remove != 0]
+
+    if labels_to_remove.size == 0:
+        # No labels to remove; return a copy
+        return labels.copy()
+
+    # Remove detected labels by setting them to 0 everywhere
+    cleaned = labels.copy()
+    cleaned[np.isin(cleaned, labels_to_remove)] = 0
+
+    return cleaned
 
 def _keep_objects_in_size_range(labels: np.ndarray, min_max_size: tuple[int, int]) -> np.ndarray:
     """
@@ -74,6 +121,8 @@ def predict_nuclei_labels(image: np.ndarray, rescale_factor: float, nuclei_chann
 
     # Predict nuclei labels
     nuclei_labels, _ , _ = model.eval(image[nuclei_channel], do_3D=True, anisotropy=rescale_factor, z_axis=0, niter=1000)
+    # Remove labels touching the longest axis extremes
+    nuclei_labels = _remove_labels_touching_longest_axis_extremes(nuclei_labels)
     # Filter nuclei labels to keep only those within the specified size range
     nuclei_labels = _keep_objects_in_size_range(nuclei_labels, min_max_nuclei_volume)
 
