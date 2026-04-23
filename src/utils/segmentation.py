@@ -1,7 +1,7 @@
 from cellpose import models, core, io
 import numpy as np
 from skimage.filters import difference_of_gaussians
-from scipy.ndimage import binary_fill_holes
+from scipy.ndimage import binary_fill_holes, distance_transform_edt
 from skimage.morphology import binary_closing, binary_opening, binary_erosion, disk, ball
 from skimage.measure import label
 from skimage.segmentation import relabel_sequential
@@ -414,3 +414,102 @@ def smooth_outer_root_surface_3d(
         v.add_image(smooth_mask, name="smooth_root_3d", colormap="green", blending="additive", opacity=0.5)
 
     return smooth_mask
+
+def _calculate_nuclei_coverage_per_slice(
+    nuclei_mask: np.ndarray,
+    root_mask: np.ndarray,
+    percentage_threshold: float = 5.0
+) -> tuple[dict[int, float], int | None]:
+    """
+    Calculate the percentage of root mask area covered by nuclei mask per slice (z).
+    Returns a per-slice dictionary and the first z-index above the given threshold.
+
+    Args:
+        nuclei_mask (np.ndarray): Boolean 3D array (Z, Y, X), mask of nuclei (True = nuclei).
+        root_mask (np.ndarray): 3D array (Z, Y, X), root segmentation (can be bool/int).
+        percentage_threshold (float, optional): The minimum percent coverage to find the first slice exceeding this value. Default is 5.0.
+
+    Returns:
+        tuple[dict[int, float], int or None]: 
+            - Per-slice percent coverage {z: percent_covered}.
+            - The first z index where percent coverage exceeds the threshold, or None if not present.
+    """
+    slice_coverage: dict[int, float] = {}
+    for z_idx in range(nuclei_mask.shape[0]):
+        mask_slice = nuclei_mask[z_idx]
+        root_slice = root_mask[z_idx] > 0
+        relevant_pixels = root_slice.sum()
+        if relevant_pixels == 0:
+            percentage = 0.0
+        else:
+            percentage = 100 * (mask_slice & root_slice).sum() / relevant_pixels
+        slice_coverage[z_idx] = percentage
+
+    first_above_thresh = next((z for z, pct in slice_coverage.items() if pct > percentage_threshold), None)
+    return slice_coverage, first_above_thresh
+
+def wrap_outer_root_surface(
+    nuclei_labels: np.ndarray,
+    smooth_root_3d: np.ndarray,
+    props_df,
+    percentage_threshold: float = 5.0,
+    edt_threshold: float = 15.0,
+    visualize: bool = True,
+    viewer=None,
+) -> np.ndarray:
+    """
+    Refine the outer root mask by wrapping its surface more tightly around
+    the outmost layer of root_body nuclei, especially at the top (low-z) slices.
+
+    This function excludes nuclei associated with the root cap, computes the per-slice
+    nuclei coverage of the root, and restricts the root mask above the slice where the
+    nuclei coverage first exceeds a threshold. It then expands the root mask inwards/outwards
+    in the remaining region using the Euclidean distance to root_body nuclei.
+
+    Args:
+        nuclei_labels (np.ndarray): 3D labeled array (Z, Y, X) of nuclei—integer labels, 0 = background.
+        smooth_root_3d (np.ndarray): 3D boolean array (Z, Y, X), initial (smoothed) root mask.
+        props_df (pd.DataFrame): DataFrame with one row per nucleus and columns ['label', 'root_part'], specifying nucleus identity and part assignment.
+        percentage_threshold (float, optional): Minimum percent coverage of root area by root_body nuclei, to determine top-cutoff (default: 5.0).
+        edt_threshold (float, optional): Maximum Euclidean distance (voxels) for including background into the refined root mask (default: 15.0).
+        visualize (bool, optional): If True, displays diagnostic layers in napari (default: True).
+        viewer (optional): napari Viewer instance; if None, a viewer will be resolved or created as needed.
+
+    Returns:
+        np.ndarray: Boolean mask (Z, Y, X) of the refined root, wrapping tightly around the outermost root_body nuclei.
+    """
+    # Identify nuclei label IDs assigned to the root cap
+    cap_label_ids = props_df.loc[props_df["root_part"] == "root_cap", "label"].values
+
+    # Remove nuclei corresponding to the root cap from the label mask
+    nuclei_labels_no_cap = nuclei_labels.copy()
+    for cap_id in cap_label_ids:
+        nuclei_labels_no_cap[nuclei_labels_no_cap == cap_id] = 0
+
+    # Generate a mask of all nuclei belonging to the root body (excluding cap)
+    nuclei_mask_no_cap = nuclei_labels_no_cap > 0
+
+    # Compute per-slice coverage and find the first slice with sufficient coverage
+    slice_coverage, first_above_thresh = _calculate_nuclei_coverage_per_slice(
+        nuclei_mask_no_cap, smooth_root_3d, percentage_threshold=percentage_threshold
+    )
+
+    # Create a copy of the root mask with top slices cleared up to the cutoff
+    smooth_root_3d_no_top = smooth_root_3d.copy()
+    if first_above_thresh is not None and first_above_thresh > 0:
+        smooth_root_3d_no_top[:first_above_thresh] = False
+
+    # Compute the Euclidean distance transform of the background (non-nuclei region)
+    edt_nuclei = distance_transform_edt(~nuclei_mask_no_cap)  # shape: (Z, Y, X)
+    edt_nuclei_outwards_mask = edt_nuclei < edt_threshold
+
+    # Form the final mask by combining the eroded root (no top) and distance-defined envelope
+    refined_root_mask = smooth_root_3d_no_top | edt_nuclei_outwards_mask
+
+    # Optionally visualize the results in napari
+    if visualize:
+        v = _resolve_napari_viewer(viewer)
+        v.add_labels(nuclei_labels_no_cap, name="nuclei_labels_no_cap")
+        v.add_image(refined_root_mask, name="refined_root_mask", colormap="green", blending="additive", opacity=0.5)
+
+    return refined_root_mask
