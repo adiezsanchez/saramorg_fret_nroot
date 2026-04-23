@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 from scipy.ndimage import distance_transform_edt
 from skimage.measure import regionprops, regionprops_table
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
 
 MORPHOLOGY_PROPERTIES = [
@@ -291,6 +293,80 @@ def extract_nuclei_features_per_marker(
         insertion_position += 1
 
     # Return the final DataFrame with morphology, marker intensity features, and metadata
+    return props_df
+
+def classify_root_cap_nuclei(
+    props_df: "pd.DataFrame",
+    feature_columns: list = ['edCitrine_CTRL_mean_int', 'area'],
+    weights: list = [1, 1]
+) -> "pd.DataFrame":
+    """
+    Classify nuclei as belonging to the root cap or the rest of the root structure using clustering.
+
+    This function divides nuclei into two groups (root cap vs. root) based on user-selected features and their respective weights.
+    By default, it uses:
+      - 'edCitrine_CTRL_mean_int' (higher for root cap)
+      - 'area' (smaller for root cap)
+
+    Clustering is performed using KMeans on standardized features.
+
+    Args:
+        props_df (pd.DataFrame): DataFrame containing per-nucleus features.
+        feature_columns (list, optional): List of feature column names to use for clustering. Default is ['edCitrine_CTRL_mean_int', 'area'].
+        weights (list or np.ndarray, optional): List or array of weights for each feature in feature_columns. Default is [1, 1].
+
+    Returns:
+        pd.DataFrame: The input DataFrame with additional columns:
+            - 'tip_cluster_id': cluster assignment (0 or 1) for each nucleus
+            - 'root_part': "root" or "root_cap" assignment per nucleus
+
+    Raises:
+        AssertionError: If the nuclei cluster mapped to "root_cap" does not have a higher 
+            mean value of the first feature (feature_columns[0]) than the cluster mapped to "root".
+
+    Notes:
+        - Features are scaled before clustering for equal weighting unless otherwise specified.
+        - The assignment "root_cap" is mapped to the cluster with higher mean on the first feature.
+        - Make sure feature_columns and weights are the same length.
+    """
+
+    assert len(feature_columns) == len(weights), "feature_columns and weights must be of same length"
+
+    # Select features specified by the user
+    features = props_df[feature_columns].values
+
+    # Scale features for balanced clustering
+    scaler = StandardScaler()
+    features_scaled = scaler.fit_transform(features)
+
+    # Apply weights to each feature (element-wise multiplication)
+    weights_array = np.array(weights)
+    features_weighted = features_scaled * weights_array
+
+    # Perform k-means clustering (2 clusters: root_body, root_cap)
+    kmeans = KMeans(n_clusters=2, random_state=42, n_init=10)
+    cluster_ids = kmeans.fit_predict(features_weighted)
+
+    # Add cluster assignments to DataFrame
+    props_df['tip_cluster_id'] = cluster_ids
+
+    # Map cluster IDs to "root_body" and "root_cap" based on mean of first feature
+    cluster_means = (
+        props_df.groupby('tip_cluster_id')[feature_columns[0]]
+        .mean()
+        .sort_values()
+    )
+    ordered_cluster_ids = cluster_means.index.tolist()
+    tissue_layer_map = dict(zip(ordered_cluster_ids, ["root_body", "root_cap"]))
+    props_df['root_part'] = props_df['tip_cluster_id'].map(tissue_layer_map)
+
+    # Sanity check: root_cap must have higher feature_columns[0] value than root
+    mean_root_cap = props_df.loc[props_df['root_part'] == 'root_cap', feature_columns[0]].mean()
+    mean_root = props_df.loc[props_df['root_part'] == 'root_body', feature_columns[0]].mean()
+    assert mean_root_cap > mean_root, (
+        f"Sanity check failed: root_cap mean {feature_columns[0]} is not higher than root_body"
+    )
+
     return props_df
 
 def extract_nuclei_depth(
