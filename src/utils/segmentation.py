@@ -8,12 +8,30 @@ from skimage.segmentation import relabel_sequential
 
 io.logger_setup()  # run this to get printing of progress
 
-# Check if notebook has GPU access
-if core.use_gpu() == False:
-    raise ImportError("No GPU access, change your runtime")
+_CELLPOSE_MODEL = None
 
-# Load CellposeSAM model
-model = models.CellposeModel(gpu=True)
+
+def _get_cellpose_model(require_gpu: bool = True):
+    """
+    Lazily initialize and cache the Cellpose model.
+
+    This keeps module import lightweight and allows workflows that only load
+    precomputed results to run on CPU-only environments.
+    """
+    global _CELLPOSE_MODEL
+
+    if _CELLPOSE_MODEL is not None:
+        return _CELLPOSE_MODEL
+
+    has_gpu = core.use_gpu()
+    if require_gpu and not has_gpu:
+        raise RuntimeError(
+            "Cellpose nuclei prediction requires GPU, but no GPU was detected. "
+            "You can still run workflows that load precomputed nuclei labels."
+        )
+
+    _CELLPOSE_MODEL = models.CellposeModel(gpu=has_gpu)
+    return _CELLPOSE_MODEL
 
 
 def _resolve_napari_viewer(viewer):
@@ -118,6 +136,7 @@ def predict_nuclei_labels(image: np.ndarray, rescale_factor: float, nuclei_chann
     Returns:
         np.ndarray: Nuclei labels.
     """
+    model = _get_cellpose_model(require_gpu=True)
 
     # Predict nuclei labels
     nuclei_labels, _ , _ = model.eval(image[nuclei_channel], do_3D=True, anisotropy=rescale_factor, z_axis=0, niter=1000)

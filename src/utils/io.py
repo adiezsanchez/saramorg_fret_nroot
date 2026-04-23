@@ -17,7 +17,10 @@ def list_containers(directory_path: str, file_format: str) -> list:
     """
     images = []
 
-    for file_path in Path(directory_path).glob(f"*.{file_format}"):
+    for file_path in sorted(
+        Path(directory_path).glob(f"*.{file_format}"),
+        key=lambda p: p.name.lower(),
+    ):
         images.append(str(file_path))
 
     return images
