@@ -333,10 +333,16 @@ def compute_fret_ratios(df: "pd.DataFrame") -> "pd.DataFrame":
     """
     Compute FRET ratios (raw and normalized) from per-nucleus intensity features.
 
+    FRET ratio = (donor-excited acceptor emission) / (donor-excited donor emission)
+                = edCitrine_FRET / edCerulean_CTRL
+
     This function calculates FRET (Förster Resonance Energy Transfer) ratios using donor and acceptor channels,
     both as the sum and mean intensity measurements, and appends these ratios as new columns to the input dataframe.
 
-    Normalization scope is per image.
+    Note: 
+    - Saturated pixels are not excluded from the FRET ratio calculation.
+    - No bleed-through or direct excitation correction is applied in this raw ratio.
+    - Normalization scope is per image.
 
     The following columns are expected in the input DataFrame:
         - "edCerulean_CTRL_sum_int" : Donor signal (sum intensity)
