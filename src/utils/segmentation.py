@@ -186,7 +186,7 @@ def _normalize_full_range(image: np.ndarray) -> np.ndarray:
 
 def simulate_fluo_from_bf(
     lif_image: np.ndarray, 
-    markers: tuple, 
+    markers: list[tuple[str, int, str]], 
     low_sigma: float = 1, 
     high_sigma: float = 2
 ) -> np.ndarray:
@@ -195,7 +195,8 @@ def simulate_fluo_from_bf(
 
     Args:
         lif_image (np.ndarray): 4D image data, assumed shape (C, Z, Y, X) or (C, ...).
-        markers (tuple): Channel descriptors linking channel names to indices.
+        markers (list[tuple[str, int, str]]): Marker tuples in the form
+            ``(marker_name, channel_index, marker_role_or_descriptor)``.
         low_sigma (float, optional): Lower sigma for DoG. Defaults to 1.
         high_sigma (float, optional): Higher sigma for DoG. Defaults to 2.
 
@@ -204,9 +205,9 @@ def simulate_fluo_from_bf(
     """
     # Find the brightfield channel index in the user-defined markers
     bf_index = None
-    for marker in markers:
-        if marker[0].lower() in ["brightfield", "bf"]:
-            bf_index = marker[1]
+    for marker_name, ch_index, *_ in markers:
+        if marker_name.lower() in ["brightfield", "bf"]:
+            bf_index = ch_index
             break
     if bf_index is None:
         print("Please define the brightfield channel index under MARKERS.")

@@ -91,7 +91,42 @@ def _flood_fill_planes_below_threshold(
 
     return mask_3d_filled, True, failing_planes
 
-def _pad_half_root(root_3d_mask: np.ndarray) -> np.ndarray:
+def _distance_map_from_root_mask(
+    root_3d_mask: np.ndarray,
+    pad_width: tuple[tuple[int, int], tuple[int, int], tuple[int, int]],
+    spacing_zyx_um: tuple[float, float, float],
+) -> np.ndarray:
+    """
+    Compute distance-to-surface map in physical units (um).
+
+    Args:
+        root_3d_mask (np.ndarray): Boolean 3D mask (Z, Y, X) of the root body.
+        pad_width (tuple): Padding configuration in np.pad format for (Z, Y, X).
+        spacing_zyx_um (tuple[float, float, float]): Voxel spacing in um as (z, y, x).
+
+    Returns:
+        np.ndarray: Distance map in physical units with same shape as input.
+    """
+    mask_padded = np.pad(
+        root_3d_mask.astype(bool),
+        pad_width=pad_width,
+        mode='constant',
+        constant_values=0
+    )
+    dist_padded = distance_transform_edt(mask_padded, sampling=spacing_zyx_um)
+    z0, _ = pad_width[0]
+    y0, _ = pad_width[1]
+    x0, _ = pad_width[2]
+    return dist_padded[
+        z0 : z0 + root_3d_mask.shape[0],
+        y0 : y0 + root_3d_mask.shape[1],
+        x0 : x0 + root_3d_mask.shape[2],
+    ]
+
+def _pad_half_root(
+    root_3d_mask: np.ndarray,
+    spacing_zyx_um: tuple[float, float, float] = (1.0, 1.0, 1.0),
+) -> np.ndarray:
     """
     Pads the root 3D mask with a border of zeros everywhere EXCEPT on the last Z slice (middle of the root).
     Pads Z only on the lower end (start), not on the upper end (stop); pads Y and X on both sides.
@@ -103,22 +138,16 @@ def _pad_half_root(root_3d_mask: np.ndarray) -> np.ndarray:
     Returns
         np.ndarray Distance map with the same shape as the original mask, after padding and unpadding.
     """
-    pad_width = ((1, 0), (1, 1), (1, 1))
-    mask_padded = np.pad(
-        root_3d_mask.astype(bool),
-        pad_width=pad_width,
-        mode='constant',
-        constant_values=0
+    return _distance_map_from_root_mask(
+        root_3d_mask,
+        pad_width=((1, 0), (1, 1), (1, 1)),
+        spacing_zyx_um=spacing_zyx_um,
     )
-    dist_padded = distance_transform_edt(mask_padded)
-    dist_map = dist_padded[
-        1 : 1 + root_3d_mask.shape[0],
-        1 : 1 + root_3d_mask.shape[1],
-        1 : 1 + root_3d_mask.shape[2]
-    ]
-    return dist_map
 
-def _pad_full_root(root_3d_mask: np.ndarray) -> np.ndarray:
+def _pad_full_root(
+    root_3d_mask: np.ndarray,
+    spacing_zyx_um: tuple[float, float, float] = (1.0, 1.0, 1.0),
+) -> np.ndarray:
     """
     Pad the entire root 3D mask with a border of zeros on all sides.
 
@@ -133,18 +162,17 @@ def _pad_full_root(root_3d_mask: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: Distance map with the same shape as the original mask, after full padding and unpadding.
     """
-    mask_padded = np.pad(root_3d_mask.astype(bool), pad_width=1, mode='constant', constant_values=0)
-    dist_padded = distance_transform_edt(mask_padded)
-
-    # Remove padding to restore the shape to original spatial dimensions.
-    dist_map = dist_padded[1:-1, 1:-1, 1:-1]
-
-    return dist_map
+    return _distance_map_from_root_mask(
+        root_3d_mask,
+        pad_width=((1, 1), (1, 1), (1, 1)),
+        spacing_zyx_um=spacing_zyx_um,
+    )
 
 def calculate_distance_to_root_surface(
     nuclei_labels: np.ndarray,
     root_3d_mask: np.ndarray,
     pad_full_root: bool = False,
+    spacing_zyx_um: tuple[float, float, float] = (1.0, 1.0, 1.0),
     visualize: bool = False,
     viewer=None
 ) -> tuple[np.ndarray, bool, list[int]]:
@@ -160,6 +188,8 @@ def calculate_distance_to_root_surface(
         nuclei_labels (np.ndarray): 3D label array of nuclei (Z, Y, X).
         root_3d_mask (np.ndarray): Boolean 3D mask (Z, Y, X) representing the root body.
         pad_full_root (bool, optional): If True, pad the entire root mask (full root cone). If False, pad only the lower Z and the sides (half root cone). Defaults to False.
+        spacing_zyx_um (tuple[float, float, float], optional): Voxel spacing in um
+            ordered as (z, y, x). Defaults to isotropic (1.0, 1.0, 1.0).
         visualize (bool, optional): If True, display the normalized depth map in Napari.
         viewer (optional): Napari ``Viewer`` instance. If ``visualize`` is True and this is omitted,
             the current viewer (if any) is used, otherwise a new ``napari.Viewer()`` is created.
@@ -172,7 +202,7 @@ def calculate_distance_to_root_surface(
     """
     # Choose padding strategy depending on root type (full or half cone)
     if pad_full_root:
-        dist_map = _pad_full_root(root_3d_mask)
+        dist_map = _pad_full_root(root_3d_mask, spacing_zyx_um=spacing_zyx_um)
         is_flooded = False
         flooded_planes = []
     else:
@@ -180,7 +210,7 @@ def calculate_distance_to_root_surface(
         root_3d_mask, is_flooded, flooded_planes = _flood_fill_planes_below_threshold(
             root_3d_mask
         )
-        dist_map = _pad_half_root(root_3d_mask)
+        dist_map = _pad_half_root(root_3d_mask, spacing_zyx_um=spacing_zyx_um)
 
     # Normalize distances by the maximum value inside the root (approximate root radius).
     max_dist = dist_map.max()
@@ -222,7 +252,7 @@ def calculate_distance_to_root_surface(
 def extract_nuclei_features_per_marker(
     nuclei_labels: np.ndarray,
     lif_image: np.ndarray,
-    markers: list[tuple[str, int]],
+    markers: list[tuple[str, int, str]],
     descriptor_dict: dict[str, str | int | float | bool],
 ) -> pd.DataFrame:
     """
@@ -236,7 +266,8 @@ def extract_nuclei_features_per_marker(
     Args:
         nuclei_labels (np.ndarray): 3D label image where each nucleus has a unique integer label.
         lif_image (np.ndarray): Multichannel image array indexed as ``lif_image[channel]``.
-        markers (list[tuple[str, int]]): Marker definitions as ``(marker_name, channel_index)``.
+        markers (list[tuple[str, int, str]]): Marker definitions as
+            ``(marker_name, channel_index, marker_role_or_descriptor)``.
         descriptor_dict (dict[str, str | int | float | bool]): Metadata values to prepend as columns.
 
     Returns:
@@ -252,7 +283,7 @@ def extract_nuclei_features_per_marker(
     props_df = pd.DataFrame(props_morphology)
 
     # Iterate over all markers to extract intensity features
-    for marker_name, ch_nr in markers:
+    for marker_name, ch_nr, *_ in markers:
         # Skip the brightfield marker (no intensity features required)
         if marker_name == "brightfield":
             continue
@@ -405,45 +436,60 @@ def extract_nuclei_depth(
     # Return the DataFrame, which now provides the mean depth value for each nucleus label.
     return depth_df
 
-def compute_fret_ratios(df: "pd.DataFrame") -> "pd.DataFrame":
+from typing import Optional
+
+def compute_fret_ratios(
+    df: "pd.DataFrame",
+    markers: Optional[list[tuple[str, int, str]]] = None
+) -> "pd.DataFrame":
     """
-    Compute FRET ratios (raw and normalized) from per-nucleus intensity features.
+    Compute FRET ratios (raw and normalized) from per-nucleus intensity features using a configurable markers list.
 
     FRET ratio = (donor-excited acceptor emission) / (donor-excited donor emission)
-                = edCitrine_FRET / edCerulean_CTRL
+                = (DA marker) / (DD marker)
 
-    This function calculates FRET (Förster Resonance Energy Transfer) ratios using donor and acceptor channels,
-    both as the sum and mean intensity measurements, and appends these ratios as new columns to the input dataframe.
+    This function identifies the donor (DD) and donor-excited acceptor (DA) channels from the provided markers
+    list of tuples, extracts the corresponding intensity columns from the DataFrame, and computes the FRET ratios.
 
-    Note: 
+    Note:
     - Saturated pixels are not excluded from the FRET ratio calculation.
     - No bleed-through or direct excitation correction is applied in this raw ratio.
     - Normalization scope is per image.
 
-    The following columns are expected in the input DataFrame:
-        - "edCerulean_CTRL_sum_int" : Donor signal (sum intensity)
-        - "edCitrine_FRET_sum_int"  : Acceptor FRET signal (sum intensity)
-        - "edCerulean_CTRL_mean_int": Donor signal (mean intensity)
-        - "edCitrine_FRET_mean_int" : Acceptor FRET signal (mean intensity)
-
-    Added columns:
-        - "FRET_ratio_sum"         : Raw FRET ratio from sums
-        - "FRET_ratio_mean"        : Raw FRET ratio from means
-        - "FRET_ratio_sum_norm"    : FRET ratio (sum-based) normalized to [0, 1]
-        - "FRET_ratio_mean_norm"   : FRET ratio (mean-based) normalized to [0, 1]
-
     Args:
-        df (pd.DataFrame): Per-nucleus feature table containing intensity columns for donor and acceptor markers.
+        df (pd.DataFrame): Per-nucleus feature table containing intensity columns for all markers.
+        markers (Optional[list[tuple[str, int, str]]]): Marker tuples in the form
+            ``(marker_name, channel_index, role_str)``. The role string must be in
+            position 3 of each tuple and should contain ``"DD"`` or ``"DA"``.
 
     Returns:
         pd.DataFrame: The same DataFrame with new FRET ratio columns appended.
     """
-    # Extract donor and acceptor signals from the feature table
-    dd_sum = df["edCerulean_CTRL_sum_int"]
-    da_sum = df["edCitrine_FRET_sum_int"]
 
-    dd_mean = df["edCerulean_CTRL_mean_int"]
-    da_mean = df["edCitrine_FRET_mean_int"]
+    # Set default markers if none provided
+    if markers is None:
+        markers = [
+            ("edCerulean_CTRL", 0, "DD"),
+            ("edCitrine_FRET", 1, "DA"),
+            ("edCitrine_CTRL", 2, "DD"),
+            ("brightfield", 3, "root_structure")
+        ]
+
+    # Helper to scan the marker tuples for "DD" and "DA" channels (case-insensitive) by role_str
+    dd_candidates = [(name, role) for name, _, role, *_ in markers if "dd" in role.lower()]
+    da_candidates = [(name, role) for name, _, role, *_ in markers if "da" in role.lower()]
+    if not dd_candidates or not da_candidates:
+        raise ValueError("Could not identify DD and DA markers from markers list.")
+
+    # Take first DD and DA markers found
+    dd_marker_name, _ = dd_candidates[0]
+    da_marker_name, _ = da_candidates[0]
+
+    # Get corresponding columns from the DataFrame for sum and mean intensities
+    dd_sum = df[f"{dd_marker_name}_sum_int"]
+    da_sum = df[f"{da_marker_name}_sum_int"]
+    dd_mean = df[f"{dd_marker_name}_mean_int"]
+    da_mean = df[f"{da_marker_name}_mean_int"]
 
     # Compute mask for valid signals (avoid division by zero)
     valid_sum = (dd_sum > 0) & (da_sum > 0)

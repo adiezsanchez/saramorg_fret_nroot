@@ -165,6 +165,19 @@ def _extract_pixel_sizes_um(xml_element) -> tuple[float, float, float]:
 
     return x_um, y_um, z_um
 
+def get_voxel_spacing_zyx_um(xml_element) -> tuple[float, float, float]:
+    """
+    Return voxel spacing in micrometers as (z_um, y_um, x_um).
+
+    Args:
+        xml_element: Parsed XML metadata element containing pixel size information.
+
+    Returns:
+        tuple[float, float, float]: Voxel spacing ordered as (z, y, x) in um.
+    """
+    x_um, y_um, z_um = _extract_pixel_sizes_um(xml_element)
+    return z_um, y_um, x_um
+
 def calculate_rescale_factor(xml_element, display: bool = False) -> float:
     """
     Calculate the anisotropy rescale factor along the Z-axis based on pixel sizes in the Leica XML metadata.
