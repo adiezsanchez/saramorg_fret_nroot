@@ -91,7 +91,42 @@ def _flood_fill_planes_below_threshold(
 
     return mask_3d_filled, True, failing_planes
 
-def _pad_half_root(root_3d_mask: np.ndarray) -> np.ndarray:
+def _distance_map_from_root_mask(
+    root_3d_mask: np.ndarray,
+    pad_width: tuple[tuple[int, int], tuple[int, int], tuple[int, int]],
+    spacing_zyx_um: tuple[float, float, float],
+) -> np.ndarray:
+    """
+    Compute distance-to-surface map in physical units (um).
+
+    Args:
+        root_3d_mask (np.ndarray): Boolean 3D mask (Z, Y, X) of the root body.
+        pad_width (tuple): Padding configuration in np.pad format for (Z, Y, X).
+        spacing_zyx_um (tuple[float, float, float]): Voxel spacing in um as (z, y, x).
+
+    Returns:
+        np.ndarray: Distance map in physical units with same shape as input.
+    """
+    mask_padded = np.pad(
+        root_3d_mask.astype(bool),
+        pad_width=pad_width,
+        mode='constant',
+        constant_values=0
+    )
+    dist_padded = distance_transform_edt(mask_padded, sampling=spacing_zyx_um)
+    z0, _ = pad_width[0]
+    y0, _ = pad_width[1]
+    x0, _ = pad_width[2]
+    return dist_padded[
+        z0 : z0 + root_3d_mask.shape[0],
+        y0 : y0 + root_3d_mask.shape[1],
+        x0 : x0 + root_3d_mask.shape[2],
+    ]
+
+def _pad_half_root(
+    root_3d_mask: np.ndarray,
+    spacing_zyx_um: tuple[float, float, float] = (1.0, 1.0, 1.0),
+) -> np.ndarray:
     """
     Pads the root 3D mask with a border of zeros everywhere EXCEPT on the last Z slice (middle of the root).
     Pads Z only on the lower end (start), not on the upper end (stop); pads Y and X on both sides.
@@ -103,22 +138,16 @@ def _pad_half_root(root_3d_mask: np.ndarray) -> np.ndarray:
     Returns
         np.ndarray Distance map with the same shape as the original mask, after padding and unpadding.
     """
-    pad_width = ((1, 0), (1, 1), (1, 1))
-    mask_padded = np.pad(
-        root_3d_mask.astype(bool),
-        pad_width=pad_width,
-        mode='constant',
-        constant_values=0
+    return _distance_map_from_root_mask(
+        root_3d_mask,
+        pad_width=((1, 0), (1, 1), (1, 1)),
+        spacing_zyx_um=spacing_zyx_um,
     )
-    dist_padded = distance_transform_edt(mask_padded)
-    dist_map = dist_padded[
-        1 : 1 + root_3d_mask.shape[0],
-        1 : 1 + root_3d_mask.shape[1],
-        1 : 1 + root_3d_mask.shape[2]
-    ]
-    return dist_map
 
-def _pad_full_root(root_3d_mask: np.ndarray) -> np.ndarray:
+def _pad_full_root(
+    root_3d_mask: np.ndarray,
+    spacing_zyx_um: tuple[float, float, float] = (1.0, 1.0, 1.0),
+) -> np.ndarray:
     """
     Pad the entire root 3D mask with a border of zeros on all sides.
 
@@ -133,18 +162,17 @@ def _pad_full_root(root_3d_mask: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: Distance map with the same shape as the original mask, after full padding and unpadding.
     """
-    mask_padded = np.pad(root_3d_mask.astype(bool), pad_width=1, mode='constant', constant_values=0)
-    dist_padded = distance_transform_edt(mask_padded)
-
-    # Remove padding to restore the shape to original spatial dimensions.
-    dist_map = dist_padded[1:-1, 1:-1, 1:-1]
-
-    return dist_map
+    return _distance_map_from_root_mask(
+        root_3d_mask,
+        pad_width=((1, 1), (1, 1), (1, 1)),
+        spacing_zyx_um=spacing_zyx_um,
+    )
 
 def calculate_distance_to_root_surface(
     nuclei_labels: np.ndarray,
     root_3d_mask: np.ndarray,
     pad_full_root: bool = False,
+    spacing_zyx_um: tuple[float, float, float] = (1.0, 1.0, 1.0),
     visualize: bool = False,
     viewer=None
 ) -> tuple[np.ndarray, bool, list[int]]:
@@ -160,6 +188,8 @@ def calculate_distance_to_root_surface(
         nuclei_labels (np.ndarray): 3D label array of nuclei (Z, Y, X).
         root_3d_mask (np.ndarray): Boolean 3D mask (Z, Y, X) representing the root body.
         pad_full_root (bool, optional): If True, pad the entire root mask (full root cone). If False, pad only the lower Z and the sides (half root cone). Defaults to False.
+        spacing_zyx_um (tuple[float, float, float], optional): Voxel spacing in um
+            ordered as (z, y, x). Defaults to isotropic (1.0, 1.0, 1.0).
         visualize (bool, optional): If True, display the normalized depth map in Napari.
         viewer (optional): Napari ``Viewer`` instance. If ``visualize`` is True and this is omitted,
             the current viewer (if any) is used, otherwise a new ``napari.Viewer()`` is created.
@@ -172,7 +202,7 @@ def calculate_distance_to_root_surface(
     """
     # Choose padding strategy depending on root type (full or half cone)
     if pad_full_root:
-        dist_map = _pad_full_root(root_3d_mask)
+        dist_map = _pad_full_root(root_3d_mask, spacing_zyx_um=spacing_zyx_um)
         is_flooded = False
         flooded_planes = []
     else:
@@ -180,7 +210,7 @@ def calculate_distance_to_root_surface(
         root_3d_mask, is_flooded, flooded_planes = _flood_fill_planes_below_threshold(
             root_3d_mask
         )
-        dist_map = _pad_half_root(root_3d_mask)
+        dist_map = _pad_half_root(root_3d_mask, spacing_zyx_um=spacing_zyx_um)
 
     # Normalize distances by the maximum value inside the root (approximate root radius).
     max_dist = dist_map.max()
