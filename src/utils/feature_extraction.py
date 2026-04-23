@@ -467,3 +467,121 @@ def compute_fret_ratios(df: "pd.DataFrame") -> "pd.DataFrame":
     df["FRET_ratio_mean_norm_per_image"] = normalize(df["FRET_ratio_mean"])
 
     return df
+
+def map_root_body_depth_clusters_to_tissue_layers(
+    props_df: "pd.DataFrame"
+) -> "pd.DataFrame":
+    """
+    Cluster root body nuclei by normalized depth and assign tissue layer identity.
+
+    This function excludes nuclei annotated as 'root_cap', clusters the remaining (root body)
+    nuclei based on their depth using k-means (n_clusters=5), and deterministically maps the
+    resulting clusters to sequential cluster IDs and canonical tissue layer names. The output dataframe
+    maps each nucleus (label) to:
+        - depth_cluster_id (int): Deterministic cluster index (2...6 for root body, 1 for root cap),
+        - tissue_layer (str): Biological layer name ("Epi", "Cor", "End", "Per", "Vasc" for root body, "root_cap" for root cap).
+
+    Args:
+        props_df (pd.DataFrame): Nucleus-level feature table. Must include columns:
+            - "label": unique nucleus IDs,
+            - "root_part": string annotation ("root_body" or "root_cap"),
+            - "depth": float, normalized or absolute depth for each nucleus.
+
+    Returns:
+        pd.DataFrame: Mini-table (with columns: "label", "depth_cluster_id", "tissue_layer")
+            containing only root_body nuclei; can be merged/joined back to props_df.
+    """
+    # Filter out root cap nuclei before performing depth clustering
+    # Create a minimal copy of the original dataframe
+    filtered_df: "pd.DataFrame" = props_df.loc[
+        props_df["root_part"] == "root_body", ["depth", "label"]
+    ].copy()
+
+    # Perform k-means clustering (5 groups) on the 'depth' column
+    depth_values: "np.ndarray" = filtered_df["depth"].to_numpy().reshape(-1, 1)
+    kmeans = KMeans(n_clusters=5, random_state=42, n_init=10)
+    filtered_df["cluster_raw"] = kmeans.fit_predict(depth_values)  # arbitrary labels 0..4
+
+    # Compute mean depth per raw cluster and sort shallow -> deep
+    cluster_order = (
+        filtered_df.groupby("cluster_raw")["depth"]
+        .mean()
+        .sort_values(ascending=True)
+        .index
+        .tolist()
+    )
+
+    # Build deterministic remaps with ordered numeric ids (e.g., 2..6). root_cap will become 1 later
+    raw_to_depth_id = {raw: i + 2 for i, raw in enumerate(cluster_order)}
+    filtered_df["depth_cluster_id"] = filtered_df["cluster_raw"].map(raw_to_depth_id)
+
+    # Assign tissue layers in the same ordered direction
+    layer_names = ["Epi", "Cor", "End", "Per", "Vasc"]  # shallow -> deep
+    raw_to_layer = {raw: layer_names[i] for i, raw in enumerate(cluster_order)}
+    filtered_df["tissue_layer"] = filtered_df["cluster_raw"].map(raw_to_layer)
+
+    return filtered_df[["label", "depth_cluster_id", "tissue_layer"]]
+
+def merge_root_cap_into_tissue_layers(
+    props_df: "pd.DataFrame",
+    filtered_df: "pd.DataFrame"
+) -> "pd.DataFrame":
+    """
+    Merge depth cluster/layer assignments into the full nucleus feature DataFrame,
+    handling root cap nuclei by defaulting missing values to canonical root cap assignments.
+
+    This function merges tissue layer and depth cluster assignments (from `filtered_df`)
+    into the full nucleus table (`props_df`). For nuclei annotated as root cap
+    ("root_part" == "root_cap"), it assigns:
+        - "tissue_layer" = "root_cap"
+        - "depth_cluster_id" = 1
+
+    For all other nuclei, values from filtered_df are used; any missing cluster
+    assignments (should be rare) are assigned to 0 as a fallback.
+
+    Args:
+        props_df (pd.DataFrame): Full per-nucleus feature table. Must include columns:
+            - "label": unique nucleus IDs
+            - "root_part": "root_body" or "root_cap"
+        filtered_df (pd.DataFrame): DataFrame containing at least:
+            - "label": nucleus IDs for root_body nuclei
+            - "depth_cluster_id": depth cluster indices
+            - "tissue_layer": tissue layer names
+
+    Returns:
+        pd.DataFrame: `props_df` with "depth_cluster_id" and "tissue_layer" columns
+            assigned for both root_body and root_cap nuclei.
+    """
+    # Merge filtered_df into props_df on 'label'
+    props_df = props_df.merge(
+        filtered_df[['label', 'depth_cluster_id', 'tissue_layer']],
+        on='label',
+        how='left'
+    )
+
+    # Default missing tissue layer to root_cap
+    props_df['tissue_layer'] = props_df['tissue_layer'].fillna('root_cap')
+
+    # Start with nullable int so we can assign selectively
+    props_df['depth_cluster_id'] = props_df['depth_cluster_id'].astype('Int64')
+
+    # Force root_cap rows to cluster id 1
+    root_cap_mask = props_df['root_part'].eq('root_cap')
+    props_df.loc[root_cap_mask, 'depth_cluster_id'] = 1
+
+    # For any remaining missing values (non-root_cap), choose fallback (e.g., 0)
+    props_df['depth_cluster_id'] = props_df['depth_cluster_id'].fillna(0).astype(int)
+
+    # Keep tissue_layer consistent for root_cap
+    props_df.loc[root_cap_mask, 'tissue_layer'] = 'root_cap'
+
+    # Sanity checks
+    assert (
+        props_df.loc[props_df["tissue_layer"] == "root_cap", "root_part"] == "root_cap"
+    ).all(), "Sanity check failed: Some 'root_cap' tissue_layer rows are not root_part == 'root_cap'"
+
+    assert (
+        props_df.loc[props_df["root_part"] == "root_cap", "depth_cluster_id"] == 1
+    ).all(), "Sanity check failed: Some root_cap rows do not have depth_cluster_id == 1"
+
+    return props_df
