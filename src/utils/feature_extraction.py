@@ -252,7 +252,7 @@ def calculate_distance_to_root_surface(
 def extract_nuclei_features_per_marker(
     nuclei_labels: np.ndarray,
     lif_image: np.ndarray,
-    markers: list[tuple[str, int]],
+    markers: list[tuple[str, int, str]],
     descriptor_dict: dict[str, str | int | float | bool],
 ) -> pd.DataFrame:
     """
@@ -266,7 +266,8 @@ def extract_nuclei_features_per_marker(
     Args:
         nuclei_labels (np.ndarray): 3D label image where each nucleus has a unique integer label.
         lif_image (np.ndarray): Multichannel image array indexed as ``lif_image[channel]``.
-        markers (list[tuple[str, int]]): Marker definitions as ``(marker_name, channel_index)``.
+        markers (list[tuple[str, int, str]]): Marker definitions as
+            ``(marker_name, channel_index, marker_role_or_descriptor)``.
         descriptor_dict (dict[str, str | int | float | bool]): Metadata values to prepend as columns.
 
     Returns:
@@ -282,7 +283,7 @@ def extract_nuclei_features_per_marker(
     props_df = pd.DataFrame(props_morphology)
 
     # Iterate over all markers to extract intensity features
-    for marker_name, ch_nr in markers:
+    for marker_name, ch_nr, *_ in markers:
         # Skip the brightfield marker (no intensity features required)
         if marker_name == "brightfield":
             continue
@@ -435,45 +436,60 @@ def extract_nuclei_depth(
     # Return the DataFrame, which now provides the mean depth value for each nucleus label.
     return depth_df
 
-def compute_fret_ratios(df: "pd.DataFrame") -> "pd.DataFrame":
+from typing import Optional
+
+def compute_fret_ratios(
+    df: "pd.DataFrame",
+    markers: Optional[list[tuple[str, int, str]]] = None
+) -> "pd.DataFrame":
     """
-    Compute FRET ratios (raw and normalized) from per-nucleus intensity features.
+    Compute FRET ratios (raw and normalized) from per-nucleus intensity features using a configurable markers list.
 
     FRET ratio = (donor-excited acceptor emission) / (donor-excited donor emission)
-                = edCitrine_FRET / edCerulean_CTRL
+                = (DA marker) / (DD marker)
 
-    This function calculates FRET (Förster Resonance Energy Transfer) ratios using donor and acceptor channels,
-    both as the sum and mean intensity measurements, and appends these ratios as new columns to the input dataframe.
+    This function identifies the donor (DD) and donor-excited acceptor (DA) channels from the provided markers
+    list of tuples, extracts the corresponding intensity columns from the DataFrame, and computes the FRET ratios.
 
-    Note: 
+    Note:
     - Saturated pixels are not excluded from the FRET ratio calculation.
     - No bleed-through or direct excitation correction is applied in this raw ratio.
     - Normalization scope is per image.
 
-    The following columns are expected in the input DataFrame:
-        - "edCerulean_CTRL_sum_int" : Donor signal (sum intensity)
-        - "edCitrine_FRET_sum_int"  : Acceptor FRET signal (sum intensity)
-        - "edCerulean_CTRL_mean_int": Donor signal (mean intensity)
-        - "edCitrine_FRET_mean_int" : Acceptor FRET signal (mean intensity)
-
-    Added columns:
-        - "FRET_ratio_sum"         : Raw FRET ratio from sums
-        - "FRET_ratio_mean"        : Raw FRET ratio from means
-        - "FRET_ratio_sum_norm"    : FRET ratio (sum-based) normalized to [0, 1]
-        - "FRET_ratio_mean_norm"   : FRET ratio (mean-based) normalized to [0, 1]
-
     Args:
-        df (pd.DataFrame): Per-nucleus feature table containing intensity columns for donor and acceptor markers.
+        df (pd.DataFrame): Per-nucleus feature table containing intensity columns for all markers.
+        markers (Optional[list[tuple[str, int, str]]]): Marker tuples in the form
+            ``(marker_name, channel_index, role_str)``. The role string must be in
+            position 3 of each tuple and should contain ``"DD"`` or ``"DA"``.
 
     Returns:
         pd.DataFrame: The same DataFrame with new FRET ratio columns appended.
     """
-    # Extract donor and acceptor signals from the feature table
-    dd_sum = df["edCerulean_CTRL_sum_int"]
-    da_sum = df["edCitrine_FRET_sum_int"]
 
-    dd_mean = df["edCerulean_CTRL_mean_int"]
-    da_mean = df["edCitrine_FRET_mean_int"]
+    # Set default markers if none provided
+    if markers is None:
+        markers = [
+            ("edCerulean_CTRL", 0, "DD"),
+            ("edCitrine_FRET", 1, "DA"),
+            ("edCitrine_CTRL", 2, "DD"),
+            ("brightfield", 3, "root_structure")
+        ]
+
+    # Helper to scan the marker tuples for "DD" and "DA" channels (case-insensitive) by role_str
+    dd_candidates = [(name, role) for name, _, role, *_ in markers if "dd" in role.lower()]
+    da_candidates = [(name, role) for name, _, role, *_ in markers if "da" in role.lower()]
+    if not dd_candidates or not da_candidates:
+        raise ValueError("Could not identify DD and DA markers from markers list.")
+
+    # Take first DD and DA markers found
+    dd_marker_name, _ = dd_candidates[0]
+    da_marker_name, _ = da_candidates[0]
+
+    # Get corresponding columns from the DataFrame for sum and mean intensities
+    dd_sum = df[f"{dd_marker_name}_sum_int"]
+    da_sum = df[f"{da_marker_name}_sum_int"]
+    dd_mean = df[f"{dd_marker_name}_mean_int"]
+    da_mean = df[f"{da_marker_name}_mean_int"]
 
     # Compute mask for valid signals (avoid division by zero)
     valid_sum = (dd_sum > 0) & (da_sum > 0)
