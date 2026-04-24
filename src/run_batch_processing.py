@@ -43,7 +43,11 @@ def main() -> int:
         raise NotADirectoryError(f"Input directory does not exist: {input_dir}")
 
     user_config = load_yaml_config(config_path)
-    runtime_config = build_runtime_config(user_config, raw_data_directory=input_dir)
+    runtime_config = build_runtime_config(
+        user_config,
+        raw_data_directory=input_dir,
+        config_base_dir=config_path.parent,
+    )
     result = run_batch(runtime_config)
 
     print(

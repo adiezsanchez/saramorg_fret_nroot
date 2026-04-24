@@ -141,11 +141,23 @@ def validate_runtime_config(config: dict[str, Any]) -> None:
         raise ValueError(f"Missing runtime config keys: {missing}")
 
 
-def build_runtime_config(user_config: dict[str, Any], raw_data_directory: str | Path) -> dict[str, Any]:
+def _resolve_path(value: str | Path, base_dir: Path | None = None) -> Path:
+    path = Path(value)
+    if path.is_absolute() or base_dir is None:
+        return path
+    return (base_dir / path).resolve()
+
+
+def build_runtime_config(
+    user_config: dict[str, Any],
+    raw_data_directory: str | Path,
+    config_base_dir: str | Path | None = None,
+) -> dict[str, Any]:
+    base_dir = Path(config_base_dir).resolve() if config_base_dir is not None else None
     config = {
-        "raw_data_directory": Path(raw_data_directory),
-        "results_root": Path(user_config.get("results_root", "./results")),
-        "model_dir": Path(user_config["model_dir"]),
+        "raw_data_directory": _resolve_path(raw_data_directory, base_dir=base_dir),
+        "results_root": _resolve_path(user_config.get("results_root", "./results"), base_dir=base_dir),
+        "model_dir": _resolve_path(user_config["model_dir"], base_dir=base_dir),
         "markers": _parse_markers(user_config["markers"]),
         "nuclei_channel": int(user_config["nuclei_channel"]),
         "min_max_nuclei_volume": _as_tuple_int(

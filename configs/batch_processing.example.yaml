@@ -1,3 +1,7 @@
+# Path resolution note:
+# Relative paths in this YAML (for example ../plantseg_models/...) are resolved
+# relative to THIS YAML file location, not the current shell working directory.
+#
 # Base directory where per-image CSV outputs are written.
 # Final path pattern is: <results_root>/<lif_container_id>/<lif_image_name>.csv
 results_root: ../results
