@@ -160,7 +160,7 @@ def load_model_from_folder(model_dir: str | Path, device: str = "cuda"):
 
     model = MODEL_REGISTRY[model_name](**model_cfg)
 
-    state = torch.load(weights_path, map_location="cpu")
+    state = torch.load(weights_path, map_location="cpu", weights_only=True)
     if isinstance(state, dict) and "model_state_dict" in state:
         state = state["model_state_dict"]
     state = _remap_state_dict_for_model(state, model)
