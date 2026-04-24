@@ -18,7 +18,7 @@ You can run the batch LIF processing pipeline from command line using:
 
 ### Example
 
-`python src/run_batch_processing.py --input-dir ./raw_data --config configs/batch_processing.example.yaml`
+`python src/run_batch_processing.py --input-dir C:\Users\adiez_cmic\github_repos\saramorg_fret_nroot\raw_data --config configs/batch_processing.example.yaml`
 
 ### Config template
 
