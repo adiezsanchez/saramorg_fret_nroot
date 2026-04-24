@@ -1,0 +1,81 @@
+# Base directory where per-image CSV outputs are written.
+# Final path pattern is: <results_root>/<lif_container_id>/<lif_image_name>.csv
+results_root: ../results
+
+# Path to a PanSeg UNet model folder containing config_train.yml and best_checkpoint.pytorch.
+model_dir: ../plantseg_models/lightsheet_3D_unet_root_ds3x
+
+# Marker/channel configuration used across feature extraction and FRET computation.
+# - name: marker name used to build output feature column names.
+# - channel: index in the input image array (C, Z, Y, X).
+# - role: semantic role; include DD and DA roles for FRET markers.
+markers:
+  - name: edCerulean_CTRL
+    channel: 0
+    role: DD
+  - name: edCitrine_FRET
+    channel: 1
+    role: DA
+  - name: edCitrine_CTRL
+    channel: 2
+    role: AA
+  - name: brightfield
+    channel: 3
+    role: root_structure
+
+# Channel index used for nuclei segmentation.
+nuclei_channel: 2
+
+# Inclusive nuclei volume filter as [min_voxels, max_voxels].
+min_max_nuclei_volume: [250, 4000]
+
+# Root boundary probability threshold used to binarize UNet output.
+root_probability_threshold: 0.9
+
+# Occupancy threshold used by fill_root_3d to derive a robust core mask.
+root_occupancy_threshold: 0.9
+
+# If true, core filling is only applied to slices with enough local support.
+root_fill_slice_aware: true
+
+# Radius for erosion step during smooth_outer_root_surface_3d.
+root_smooth_erosion: 5
+
+# Radius for closing/opening smoothing during smooth_outer_root_surface_3d.
+root_smoothing: 3
+
+# Minimum nuclei coverage percentage used by wrap_outer_root_surface top-cutoff logic.
+root_wrap_percentage_threshold: 5.0
+
+# Euclidean distance threshold (voxels) for outward mask wrapping in wrap_outer_root_surface.
+root_wrap_edt_threshold: 15.0
+
+# If true, distance-to-surface uses full-root padding mode; else half-root mode.
+depth_pad_full_root: false
+
+# Inference patch size [z, y, x] for tiled UNet prediction.
+inference_patch: [80, 160, 160]
+
+# Halo context [z, y, x] per patch for overlap-safe prediction blending.
+inference_patch_halo: [8, 16, 16]
+
+# Stride factor relative to patch size (e.g., 0.75 => 75% of patch dimensions).
+inference_stride_ratio: 0.75
+
+# Number of tiles per inference batch.
+inference_batch_size: 1
+
+# Device passed to inference: use \"cuda\" for GPU or \"cpu\".
+inference_device: cuda
+
+# Enables mixed precision autocast when using CUDA.
+inference_use_amp: true
+
+# Optional subset of container indices to process (0-based); use null for all containers.
+container_indices: null
+
+# Optional subset of image indices inside each selected container (0-based); use null for all images.
+image_indices: null
+
+# If true, existing CSV outputs are overwritten and recomputed.
+overwrite_csv: false
