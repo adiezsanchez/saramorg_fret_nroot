@@ -27,3 +27,13 @@ An annotated example config is available at:
 - `configs/batch_processing.example.yaml`
 
 This file documents each supported variable and mirrors the same parameters used in the batch notebook.
+
+### Per-image CSV outputs
+
+Written to `<results_root>/<lif_container_id>/<lif_image_name>.csv` (see the `results_root` comment block in the example YAML). Besides morphology, intensities, FRET, depth, and tissue columns, each file includes:
+
+- **`tip_cell`**: binary flag for the nucleus chosen as the root tip (`calculate_distance_to_tip`).
+- **`distance_to_tip`**: value in `[0, 1]` after normalizing centroid distances to that tip nucleus.
+- **`input_img_shape`**: JSON list `[Z, Y, X]` matching the `nuclei_labels` array shape (useful for 3D visualization and analysis notebooks).
+
+Tip distance and image shape are not configurable via YAML; they are always added when a CSV is (re)computed.

@@ -4,6 +4,11 @@
 #
 # Base directory where per-image CSV outputs are written.
 # Final path pattern is: <results_root>/<lif_container_id>/<lif_image_name>.csv
+#
+# Each per-image CSV also includes (no extra YAML keys; always computed when the image is processed):
+#   - tip_cell: 0/1 flag for the inferred root-tip nucleus (see calculate_distance_to_tip in feature_extraction).
+#   - distance_to_tip: min–max normalized 3D centroid distance to that tip nucleus.
+#   - input_img_shape: JSON list [Z, Y, X] of the nuclei_labels volume shape (for downstream plots, e.g. 3D scatter axis limits).
 results_root: ../results
 
 # Path to a PanSeg UNet model folder containing config_train.yml and best_checkpoint.pytorch.

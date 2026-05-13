@@ -194,6 +194,13 @@ def process_single_image(
     lif_container_id: str,
     config: dict[str, Any],
 ) -> dict[str, Any]:
+    """Run the full per-image pipeline and write one nucleus-level CSV under ``results_root``.
+
+    The written table includes standard regionprops and marker features, FRET ratios, root-cap
+    classification, depth, tissue layers, **tip_cell** and **distance_to_tip** (from
+    ``calculate_distance_to_tip``), and **input_img_shape** (JSON list ``[Z, Y, X]`` of
+    ``nuclei_labels.shape``).
+    """
     image_start = time.perf_counter()
     image_name = f"image_{image_index}"
 
