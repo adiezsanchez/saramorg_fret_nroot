@@ -311,6 +311,7 @@ def process_single_image(
             descriptor_dict,
         )
         props_df = compute_fret_ratios(props_df, config["markers"])
+        props_df["input_img_shape"] = json.dumps([int(x) for x in nuclei_labels.shape])
         elapsed = time.perf_counter() - image_start
         stage_elapsed = time.perf_counter() - stage_t0
         log_step(
