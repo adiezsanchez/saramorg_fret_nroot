@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Díez-Sánchez"
+    given-names: "Alberto"
+    orcid: "https://orcid.org/0000-0001-5146-3089"
+title: "adiezsanchez/saramorg_fret_nroot: FRET-NroOT"
+version: 1.0.0
+doi:
+date-released: "2026-05-13"
+url: "https://github.com/adiezsanchez/saramorg_fret_nroot"
+

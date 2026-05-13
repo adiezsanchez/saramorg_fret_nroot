@@ -12,6 +12,7 @@ from tqdm.auto import tqdm
 
 from utils.feature_extraction import (
     calculate_distance_to_root_surface,
+    calculate_distance_to_tip,
     classify_root_cap_nuclei,
     compute_fret_ratios,
     extract_nuclei_depth,
@@ -193,6 +194,13 @@ def process_single_image(
     lif_container_id: str,
     config: dict[str, Any],
 ) -> dict[str, Any]:
+    """Run the full per-image pipeline and write one nucleus-level CSV under ``results_root``.
+
+    The written table includes standard regionprops and marker features, FRET ratios, root-cap
+    classification, depth, tissue layers, **tip_cell** and **distance_to_tip** (from
+    ``calculate_distance_to_tip``), and **input_img_shape** (JSON list ``[Z, Y, X]`` of
+    ``nuclei_labels.shape``).
+    """
     image_start = time.perf_counter()
     image_name = f"image_{image_index}"
 
@@ -310,6 +318,7 @@ def process_single_image(
             descriptor_dict,
         )
         props_df = compute_fret_ratios(props_df, config["markers"])
+        props_df["input_img_shape"] = json.dumps([int(x) for x in nuclei_labels.shape])
         elapsed = time.perf_counter() - image_start
         stage_elapsed = time.perf_counter() - stage_t0
         log_step(
@@ -439,6 +448,27 @@ def process_single_image(
                 "is_flooded": bool(is_flooded),
                 "flooded_planes": int(len(flooded_planes)),
                 "depth_map_tif": str(depth_map_path),
+            },
+        )
+
+        stage_t0 = time.perf_counter()
+        props_df = calculate_distance_to_tip(
+            nuclei_labels=nuclei_labels,
+            props_df=props_df,
+            verbose=False,
+        )
+        elapsed = time.perf_counter() - image_start
+        stage_elapsed = time.perf_counter() - stage_t0
+        log_step(
+            "INFO",
+            lif_container_id,
+            image_name,
+            "tip_distance",
+            "distance to tip computed",
+            elapsed_s=elapsed,
+            details={
+                "stage_s": round(stage_elapsed, 2),
+                "n_tip_cells": int(props_df["tip_cell"].sum()),
             },
         )
 

@@ -4,7 +4,7 @@ from scipy.ndimage import distance_transform_edt
 from skimage.measure import regionprops, regionprops_table
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
-
+from typing import Literal, Optional, Tuple
 
 MORPHOLOGY_PROPERTIES = [
     "label",
@@ -631,3 +631,147 @@ def merge_root_cap_into_tissue_layers(
     ).all(), "Sanity check failed: Some root_cap rows do not have depth_cluster_id == 1"
 
     return props_df
+
+def _find_longest_axis(
+    nuclei_labels: np.ndarray,
+    props_df: pd.DataFrame,
+) -> Tuple[int, np.ndarray, str]:
+    """Identify the longest in-plane axis and return matching centroid values.
+
+    Args:
+        nuclei_labels: 3D label image in ZYX order.
+        props_df: DataFrame with centroid columns.
+
+    Returns:
+        A tuple with:
+            - axis index (1 for Y or 2 for X),
+            - centroid values along that axis,
+            - human-readable axis label.
+    """
+    _, y_dim, x_dim = nuclei_labels.shape
+    axis = 2 if x_dim >= y_dim else 1
+
+    if axis == 2:
+        return axis, props_df["centroid-2"].values, "centroid-2 (X)"
+    return axis, props_df["centroid-1"].values, "centroid-1 (Y)"
+
+
+def _find_tip_extreme(
+    axis_centroids: np.ndarray,
+    n_bins: Optional[int] = None,
+    extreme_fraction: float = 0.1,
+) -> Tuple[Literal["min", "max"], float]:
+    """Find the centroid-axis extreme with highest edge density.
+
+    Args:
+        axis_centroids: Centroid coordinates along the selected in-plane axis.
+        n_bins: Number of histogram bins. If None, uses sqrt-based heuristic.
+        extreme_fraction: Fraction of bins at each edge used to estimate extreme density.
+
+    Returns:
+        A tuple with:
+            - side label ("min" or "max"),
+            - corresponding edge value on that axis.
+    """
+    if n_bins is None:
+        n_bins = min(100, max(10, int(np.sqrt(len(axis_centroids)))))
+
+    hist, bin_edges = np.histogram(axis_centroids, bins=n_bins)
+    n_extreme = max(1, int(extreme_fraction * n_bins))
+
+    min_extreme_density = np.sum(hist[:n_extreme])
+    max_extreme_density = np.sum(hist[-n_extreme:])
+
+    if min_extreme_density >= max_extreme_density:
+        return "min", float(bin_edges[0])
+    return "max", float(bin_edges[-1])
+
+
+def _define_tip_cell(
+    props_df: pd.DataFrame,
+    axis_centroids: np.ndarray,
+    extreme_value: float,
+) -> Tuple[pd.DataFrame, int, np.ndarray]:
+    """Mark the tip cell and return its label and centroid.
+
+    Ties by axis distance to the extreme are resolved by selecting the highest
+    centroid-0 (Z), keeping the original behavior.
+
+    Args:
+        props_df: DataFrame with label and centroid columns.
+        axis_centroids: Centroid coordinates along the selected in-plane axis.
+        extreme_value: Coordinate value of the selected edge extreme.
+
+    Returns:
+        A tuple with:
+            - updated DataFrame containing a binary `tip_cell` column,
+            - selected tip-cell label,
+            - selected tip-cell centroid as [Z, Y, X].
+    """
+    df = props_df.copy()
+
+    axis_distances = np.abs(axis_centroids - extreme_value)
+    min_distance = np.min(axis_distances)
+    closest_indices = np.where(axis_distances == min_distance)[0]
+
+    if len(closest_indices) > 1:
+        centroid0_values = df.iloc[closest_indices]["centroid-0"].values
+        tip_idx = int(closest_indices[np.argmax(centroid0_values)])
+    else:
+        tip_idx = int(closest_indices[0])
+
+    tip_label = int(df.iloc[tip_idx]["label"])
+    tip_centroid = df.iloc[tip_idx][["centroid-0", "centroid-1", "centroid-2"]].values.astype(float)
+
+    df["tip_cell"] = (df["label"] == tip_label).astype(int)
+    return df, tip_label, tip_centroid
+
+
+def calculate_distance_to_tip(
+    nuclei_labels: np.ndarray,
+    props_df: pd.DataFrame,
+    verbose: bool = True,
+) -> pd.DataFrame:
+    """Compute normalized 3D distance from every nucleus to the root tip cell.
+
+    Args:
+        nuclei_labels: 3D label image in ZYX order.
+        props_df: DataFrame containing `label` and `centroid-0/1/2` columns.
+        verbose: If True, print axis and selected tip-cell diagnostics.
+
+    Returns:
+        DataFrame copy with added columns:
+            - `tip_cell` (0/1)
+            - `distance_to_tip` (normalized to [0, 1])
+    """
+    axis, axis_centroids, axis_label = _find_longest_axis(nuclei_labels, props_df)
+    extreme_side, extreme_value = _find_tip_extreme(axis_centroids)
+
+    out_df, tip_label, tip_centroid = _define_tip_cell(
+        props_df=props_df,
+        axis_centroids=axis_centroids,
+        extreme_value=extreme_value,
+    )
+
+    centroids = out_df[["centroid-0", "centroid-1", "centroid-2"]].values.astype(float)
+    distances = np.linalg.norm(centroids - tip_centroid, axis=1)
+
+    dist_min = distances.min()
+    dist_max = distances.max()
+    if dist_max - dist_min == 0:
+        norm_distances = np.zeros_like(distances)
+    else:
+        norm_distances = (distances - dist_min) / (dist_max - dist_min)
+
+    out_df["distance_to_tip"] = norm_distances
+
+    if verbose:
+        print(f"Longest axis: {axis}. Using {axis_label} to define root tip orientation.")
+        print(f"Highest centroid density at the {extreme_side} extreme (value: {extreme_value}).")
+        print(
+            f"Label closest to {extreme_side} extreme "
+            f"(and with highest centroid-0 among ties): {tip_label}"
+        )
+        print(f"Centroid coordinates (Z, Y, X): {tip_centroid}")
+
+    return out_df
