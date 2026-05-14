@@ -4,6 +4,28 @@ Analysis of Arabidopsis Thaliana roots, FRET-ratio in nuclei compartment. 3D rec
 
 ![Example depth map from the pipeline](./assets/pipeline_example_depth.png)
 
+<h2>Data acquisition and file naming conventions</h2>
+
+> [!WARNING]
+> The pipeline expects image stacks to be acquired inward, starting with the first slice outside the root surface and ending inside the root, stopping at or just beyond the midline.
+
+Please follow the naming convention below:
+
+   <code>
+   data/                                                 # Primary data folder containing all .lif containers
+   ├── YYYYMMDD_experiment_treatment.lif                 # .lif container with metadata separated by underscore (_)
+   │   ├── genotype replicateid                          # 3D stack with genotype and replicate
+   │   ├── genotype replicateid
+   │   ├── genotype replicateid
+   │   └── ...
+   ├── YYYYMMDD_experiment_treatment_.lif 
+   │   ├── genotype replicateid
+   │   ├── genotype replicateid
+   │   ├── genotype replicateid
+   │   └── ...
+   └── ...
+   </code>
+
 <h2>How to install this tool? (Environment setup)</h2>
 
 > [!TIP]
@@ -150,17 +172,11 @@ Placeholder for Bioimage Archive repository
 
 3D `.lif` root images were analyzed with a CellposeSAM-based nuclei segmentation workflow, voxel anisotropy correction from image metadata, and a boundary prediction UNet3D [Panseg](https://github.com/kreshuklab/panseg) pretrained model (`lightsheet_3D_unet_root_ds3x`). A rough 3D root mask was produced by combining boundary inference with nuclei label constraints, refined with morphological operations and distance transforms. Per-nucleus depth relative to the outer root surface was computed with anisotropy-aware EDT; nuclei were classified into root cap vs root body and mapped to tissue layers using depth- and intensity-informed clustering. FRET-related channels were summarized per nucleus (mean/min/max/std/sum). **FRET_ratio_sum** and **FRET_ratio_mean** use the configured DA (donor-excited acceptor) and DD (donor-excited donor) markers:
 
-$$
-\text{FRET\_ratio\_sum} = \frac{\sum I_{\mathrm{DA}}}{\sum I_{\mathrm{DD}}}
-$$
+- **FRET_ratio_sum** = (Σ *I*<sub>DA</sub>) / (Σ *I*<sub>DD</sub>), with both sums taken over all voxels in the nucleus. (**NaN** if either Σ *I*<sub>DA</sub> or Σ *I*<sub>DD</sub> is ≤ 0.)
 
-(**NaN** if either $\sum I_{\mathrm{DA}}$ or $\sum I_{\mathrm{DD}}$ is $\leq 0$.)
+- **FRET_ratio_mean** = (mean *I*<sub>DA</sub>) / (mean *I*<sub>DD</sub>) over voxels in the nucleus (equivalently, per-voxel mean intensities in the DA and DD channels). (**NaN** if either mean *I*<sub>DA</sub> or mean *I*<sub>DD</sub> is ≤ 0.)
 
-$$
-\text{FRET\_ratio\_mean} = \frac{\bar{I}_{\mathrm{DA}}}{\bar{I}_{\mathrm{DD}}}
-$$
-
-(**NaN** if either per-nucleus mean $\bar{I}_{\mathrm{DA}}$ or $\bar{I}_{\mathrm{DD}}$ is $\leq 0$.) A tip nucleus was identified to define normalized centroid distances to the root tip. Batch outputs were consolidated into per-image CSV files for downstream concatenation and exploratory plotting. Sums and means are computed over all voxels within each nucleus.
+A tip nucleus was identified to define normalized centroid distances to the root tip. Batch outputs were consolidated into per-image CSV files for downstream concatenation and exploratory plotting. Sums and means are computed over all voxels within each nucleus.
 
 <h2>How to cite this pipeline</h2>
 
