@@ -12,9 +12,9 @@ Analysis of Arabidopsis Thaliana roots, FRET-ratio in nuclei compartment. 3D rec
 Please follow the naming convention below:
 
    <code>
-   data/                                                 # Primary data folder containing all .lif containers
-   ├── YYYYMMDD_experiment_treatment.lif                 # .lif container with metadata separated by underscore (_)
-   │   ├── genotype replicateid                          # 3D stack with genotype and replicate
+   data/                                  # Primary data folder containing all .lif containers
+   ├── YYYYMMDD_experiment_treatment.lif  # .lif container with metadata separated by underscore (_)
+   │   ├── genotype replicateid           # 3D stack with genotype and replicate
    │   ├── genotype replicateid
    │   ├── genotype replicateid
    │   └── ...
