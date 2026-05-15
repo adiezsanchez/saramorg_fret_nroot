@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/1204742984.svg)](https://doi.org/10.5281/zenodo.20205488)
+
 <h1>FRET-NroOT — Automatic tissue layer assignment of Arabidopsis root and FRET ratio calculation in the nuclear compartment</h1>
 
 A lightweight pipeline for automated 3D analysis of Arabidopsis thaliana root tissue structure and per-nucleus FRET ratio quantification, integrating segmentation, depth-based tissue mapping, and batch processing for imaging datasets.
@@ -193,7 +195,11 @@ If you are using this pipeline to analyze your bioimage data you can easily incl
 
 - For machine-readable citation metadata, see `CITATION.cff` in this repository (also surfaced on GitHub under **About → Cite this repository**).
 
-- When a Zenodo archive exists for this repository, APA, Harvard, MLA, Vancouver, Chicago, and IEEE styles will also be available from the Zenodo record page (add the DOI badge here after the first release is archived).
+- For APA, Harvard, MLA, Vancouver, Chicago and IEEE styles, visit [Zenodo](https://doi.org/10.5281/zenodo.20205488) and in the right panel at the bottom you will find the Citation section. [![DOI](https://zenodo.org/badge/1204742984.svg)](https://doi.org/10.5281/zenodo.20205488)
+
+This is an example from APA, the most popular citation style:
+
+<code>Díez-Sánchez, A. (2026). adiezsanchez/saramorg_fret_nroot: FRET-NroOT (v1.0.0). Zenodo. https://doi.org/10.5281/zenodo.20205489</code>
 
 <h2>Related publications</h2>
 
