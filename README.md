@@ -54,7 +54,7 @@ Please follow the naming convention below:
 | <img src="./assets/pixi_thumbnail.png" width="200"> | [Pipeline installation using Pixi](https://youtu.be/tzdFuxF2E3U) | TL;DR You are busy in the wet lab and want to get your hands on in this tool and start using it ASAP.  |
 
 > [!TIP]
-> Using [Pixi](https://pixi.sh/latest/installation/) allows to share fully reproducible environments
+> Using [Pixi](https://pixi.sh/latest/installation/) allows to share fully reproducible environments across different OS. This pipeline works across <code>linux-64</code>, <code>win-64</code> and <code>osx-arm64</code>.
 
 After installing pixi, type the following command, after it is done installing your virtual environment it will launch a Jupyter instance in your browser so you can interact with the pipelines.
 
