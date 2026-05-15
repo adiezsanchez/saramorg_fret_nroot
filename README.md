@@ -1,6 +1,6 @@
 <h1>FRET-NroOT — Automatic tissue layer assignment of Arabidopsis root and FRET ratio calculation in the nuclear compartment</h1>
 
-Analysis of Arabidopsis Thaliana roots, FRET-ratio in nuclei compartment. 3D reconstruction of root structure.
+A lightweight pipeline for automated 3D analysis of Arabidopsis thaliana root tissue structure and per-nucleus FRET ratio quantification, integrating segmentation, depth-based tissue mapping, and batch processing for imaging datasets.
 
 ![Example depth map from the pipeline](./assets/pipeline_example_depth.png)
 
@@ -169,7 +169,7 @@ _for each marker, intensity is measured within the nucleus:_
 
 1. [Contact Me](mailto:alberto.d.sanchez@ntnu.no) to obtain a fresh working S3 bucket pre-signed link (when a public archive is not yet linked here).
 
-2. Paste the link inside the data-download notebook you use for this project after <code>presigned_url</code> (if applicable).
+2. Paste the link inside the `0_data_download.ipynb` notebook you use for this project after <code>presigned_urls</code>.
 
 3. Run the notebook to download and extract the data.
 
@@ -179,7 +179,7 @@ Placeholder for Bioimage Archive repository
 
 <h2>Materials and Methods: Image Analysis</h2>
 
-3D `.lif` root images were analyzed with a CellposeSAM-based nuclei segmentation workflow, voxel anisotropy correction from image metadata, and a boundary prediction UNet3D [Panseg](https://github.com/kreshuklab/panseg) pretrained model (`lightsheet_3D_unet_root_ds3x`). A rough 3D root mask was produced by combining boundary inference with nuclei label constraints, refined with morphological operations and distance transforms. Per-nucleus depth relative to the outer root surface was computed with anisotropy-aware EDT; nuclei were classified into root cap vs root body and mapped to tissue layers using depth- and intensity-informed clustering. FRET-related channels were summarized per nucleus (mean/min/max/std/sum). **FRET_ratio_sum** and **FRET_ratio_mean** use the configured DA (donor-excited acceptor) and DD (donor-excited donor) markers:
+3D `.lif` root images were analyzed with a CellposeSAM-based nuclei segmentation workflow, voxel anisotropy correction from image metadata, and a boundary prediction UNet3D [Panseg](https://github.com/kreshuklab/panseg) pretrained model (`lightsheet_3D_unet_root_ds3x`). A rough 3D root mask was produced by combining UNet3D boundary inference mask with nuclei label constraints, refined with morphological operations and distance transforms. Per-nucleus depth relative to the outer root surface was computed with anisotropy-aware Euclidean distance transform; nuclei were classified into root cap vs root body and mapped to tissue layers using depth- and intensity-informed clustering. FRET-related channel intensities were extracted per nucleus (mean/min/max/std/sum). **FRET_ratio_sum** and **FRET_ratio_mean** use the configured DA (donor-excited acceptor) and DD (donor-excited donor) markers:
 
 - **FRET_ratio_sum** = (Σ *I*<sub>DA</sub>) / (Σ *I*<sub>DD</sub>), with both sums taken over all voxels in the nucleus. (**NaN** if either Σ *I*<sub>DA</sub> or Σ *I*<sub>DD</sub> is ≤ 0.)
 
