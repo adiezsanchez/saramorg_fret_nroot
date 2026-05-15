@@ -87,7 +87,36 @@ def load_lif_image(file_path: str, image_index: int) -> tuple["np.ndarray", str,
         # Extract XML metadata
         xml_metadata = img_obj.xml_element
 
-    return img, img_name, xml_metadata 
+    return img, img_name, xml_metadata
+
+
+def apply_z_stack_acquisition_mode(
+    lif_image: np.ndarray,
+    z_stack_acquisition_mode: str,
+) -> np.ndarray:
+    """
+    Align the z-stack order with the pipeline's expected "inwards" acquisition.
+
+    The workflow assumes z-planes are ordered from the outermost root surface toward the root
+    center ("inwards"). For "outwards" acquisitions, reverse axis 1 (Z) of a (C, Z, Y, X) array.
+
+    Args:
+        lif_image: Image array with shape (C, Z, Y, X).
+        z_stack_acquisition_mode: Either "inwards" (no change) or "outwards" (reverse Z).
+
+    Returns:
+        np.ndarray: The input array, or a Z-reversed view when mode is "outwards".
+    """
+    mode = str(z_stack_acquisition_mode).strip().lower()
+    if mode not in {"inwards", "outwards"}:
+        raise ValueError(
+            "'z_stack_acquisition_mode' must be 'inwards' or 'outwards', "
+            f"got {z_stack_acquisition_mode!r}."
+        )
+    if mode == "outwards":
+        return lif_image[:, ::-1, :, :]
+    return lif_image
+
 
 def ensure_output_dir(
     base_output_dir: str | Path,

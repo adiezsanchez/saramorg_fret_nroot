@@ -14,6 +14,11 @@ results_root: ../results
 # Path to a PanSeg UNet model folder containing config_train.yml and best_checkpoint.pytorch.
 model_dir: ../plantseg_models/lightsheet_3D_unet_root_ds3x
 
+# Z-stack acquisition direction relative to the root tip.
+# - inwards: planes ordered from the outermost root surface toward the root center (default; no reversal).
+# - outwards: opposite acquisition order; reverses the Z axis (index 1 in C, Z, Y, X) in memory only.
+z_stack_acquisition_mode: inwards
+
 # Marker/channel configuration used across feature extraction and FRET computation.
 # - name: marker name used to build output feature column names.
 # - channel: index in the input image array (C, Z, Y, X).

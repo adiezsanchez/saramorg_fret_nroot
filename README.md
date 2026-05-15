@@ -7,7 +7,8 @@ Analysis of Arabidopsis Thaliana roots, FRET-ratio in nuclei compartment. 3D rec
 <h2>Data acquisition and file naming conventions</h2>
 
 > [!WARNING]
-> The pipeline expects image stacks to be acquired inward, starting with the first slice outside the root surface and ending inside the root, stopping at or just beyond the midline.
+> The pipeline expects image stacks to be acquired inward, starting with the first slice outside the root surface and ending inside the root, stopping at or just beyond the midline. 
+> If you change your z-stack acquisition direction (from root midline towards outer surface) set the <code>Z_STACK_ACQUISITION_MODE = "outwards"</code>. If you are using Batch processing CLI mode, set <code>z_stack_acquisition_mode: outwards</code>.
 
 Please follow the naming convention below:
 
@@ -62,7 +63,7 @@ After installing pixi, type the following command, after it is done installing y
 
 **Notebook 0: Single LIF image (`0_SP_single_lif_image.ipynb`)**
 
-- Loads one image from a `.lif` container, with voxel spacing from metadata for anisotropy-aware 3D CellposeSAM nuclei segmentation and optional reuse of cached labels.
+- Loads one image from a `.lif` container, with optional z-stack reversal for "outwards" acquisitions (`Z_STACK_ACQUISITION_MODE`), voxel spacing from metadata for anisotropy-aware 3D CellposeSAM nuclei segmentation, and optional reuse of cached labels.
 - Builds a 3D root mask by combining PanSeg-style UNet3D boundary inference with nuclei constraints, then refines the mask (morphology, EDT, smoothing).
 - Computes nucleus-to-root-surface depth, classifies root cap vs root body, maps depth clusters to tissue layers, and measures per-nucleus FRET-related intensities and ratios.
 - Identifies a tip nucleus, computes normalized centroid distance to the tip (`distance_to_tip`), and exports Napari-friendly QC overlays.
@@ -101,7 +102,7 @@ An annotated example config is available at:
 
 - `configs/batch_processing.example.yaml`
 
-This file documents each supported variable and mirrors the same parameters used in the batch notebook.
+This file documents each supported variable (including `z_stack_acquisition_mode`: `inwards` or `outwards`) and mirrors the same parameters used in the batch notebook.
 
 ## Per-image CSV outputs
 
@@ -112,6 +113,7 @@ Tip distance and image shape are not configurable via YAML; `tip_cell`, `distanc
 <details>
 <summary>Key Output Columns:</summary>
 
+**Sample ID Columns**
 - `lif_container_id`: Name or identifier of the original LIF file container.
 - `lif_image_name`: Name of the individual image extracted from the container.
 - `label`: Unique integer identifier for each nucleus object.

@@ -22,6 +22,7 @@ from utils.feature_extraction import (
 )
 from utils.inference import predict_tiled_unet
 from utils.io import (
+    apply_z_stack_acquisition_mode,
     calculate_rescale_factor,
     ensure_output_dir,
     explore_lif_container,
@@ -90,6 +91,13 @@ def _as_optional_int_list(values: Any, field_name: str) -> list[int] | None:
         raise ValueError(f"'{field_name}' must contain integer values.") from exc
 
 
+def _parse_z_stack_acquisition_mode(value: Any) -> str:
+    mode = str(value).strip().lower()
+    if mode not in {"inwards", "outwards"}:
+        raise ValueError("'z_stack_acquisition_mode' must be 'inwards' or 'outwards'.")
+    return mode
+
+
 def _parse_markers(markers_raw: list[Any]) -> tuple[tuple[str, int, str], ...]:
     if not isinstance(markers_raw, list) or len(markers_raw) == 0:
         raise ValueError("'markers' must be a non-empty list.")
@@ -136,6 +144,7 @@ def validate_runtime_config(config: dict[str, Any]) -> None:
         "container_indices",
         "image_indices",
         "overwrite_csv",
+        "z_stack_acquisition_mode",
     }
     missing = sorted(required_keys.difference(config.keys()))
     if missing:
@@ -183,6 +192,9 @@ def build_runtime_config(
         "container_indices": _as_optional_int_list(user_config.get("container_indices"), "container_indices"),
         "image_indices": _as_optional_int_list(user_config.get("image_indices"), "image_indices"),
         "overwrite_csv": bool(user_config.get("overwrite_csv", False)),
+        "z_stack_acquisition_mode": _parse_z_stack_acquisition_mode(
+            user_config.get("z_stack_acquisition_mode", "inwards")
+        ),
     }
     validate_runtime_config(config)
     return config
@@ -216,6 +228,9 @@ def process_single_image(
 
         stage_t0 = time.perf_counter()
         lif_image, lif_image_name, xml_metadata = load_lif_image(lif_path, image_index)
+        lif_image = apply_z_stack_acquisition_mode(
+            lif_image, config["z_stack_acquisition_mode"]
+        )
         image_name = lif_image_name
         safe_image_name = sanitize_filename(lif_image_name)
         csv_path = config["results_root"] / lif_container_id / f"{safe_image_name}.csv"
