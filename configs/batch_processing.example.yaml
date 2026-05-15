@@ -68,6 +68,8 @@ root_wrap_edt_threshold: 15.0
 depth_pad_full_root: false
 
 # Inference patch size [z, y, x] for tiled UNet prediction.
+# You might need to change the inference patch size depending on your input image dimensions
+# i.e. smaller stacks acquired with a 10x will use a smaller (Z,Y,X) patch=(20, 160, 160)
 inference_patch: [80, 160, 160]
 
 # Halo context [z, y, x] per patch for overlap-safe prediction blending.

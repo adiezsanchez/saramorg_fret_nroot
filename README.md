@@ -7,11 +7,13 @@ Analysis of Arabidopsis Thaliana roots, FRET-ratio in nuclei compartment. 3D rec
 <h2>Data acquisition and file naming conventions</h2>
 
 > [!WARNING]
-> The pipeline expects image stacks to be acquired inward, starting with the first slice outside the root surface and ending inside the root, stopping at or just beyond the midline. 
-> If you change your z-stack acquisition direction (from root midline towards outer surface) set the <code>Z_STACK_ACQUISITION_MODE = "outwards"</code>. If you are using Batch processing CLI mode, set <code>z_stack_acquisition_mode: outwards</code>.
+>- The pipeline expects image stacks to be acquired inward, starting with the first slice outside the root surface and ending inside the root, stopping at or just beyond the midline. 
+>- If you change your z-stack acquisition direction (from root midline towards outer surface) set the <code>Z_STACK_ACQUISITION_MODE = "outwards"</code>. If you are using Batch processing CLI mode, set <code>z_stack_acquisition_mode: outwards</code>.
+
+> [!NOTE]
+> Automatic tissue layer assignment based on depth is very dependent on Z-resolution. Typical 20×/0.75NA air objectives are ideal for this task. If you use a lower NA objective i.e. 10x/0.30NA the pipeline will still work but tissue layer assignment will be less precise.  
 
 Please follow the naming convention below:
-
    <code>
    data/                                  # Primary data folder containing all .lif containers
    ├── YYYYMMDD_experiment_treatment.lif  # .lif container with metadata separated by underscore (_)
@@ -26,7 +28,6 @@ Please follow the naming convention below:
    │   └── ...
    └── ...
    </code>
-
 <h2>How to install this tool? (Environment setup)</h2>
 
 > [!TIP]
@@ -60,6 +61,12 @@ After installing pixi, type the following command, after it is done installing y
 <code>cd saramorg_fret_nroot && pixi run lab</code>
 
 <h2>Workflow summary</h2>
+
+> [!IMPORTANT]
+>- For smaller input images you will need to adjust the inference patch of the UNet3D  
+>- In `0_SP_single_lif_image.ipynb` you will need to edit <code>patch</code> argument of predict_tiled_unet.
+>- In `1_BP_multiple_lif_containers.ipynb` you will need to edit <code>INFERENCE_PATCH</code> variable.
+>- In Batch Processing CLI mode you will need to edit <code>inference_patch:</code>.
 
 **Notebook 0: Single LIF image (`0_SP_single_lif_image.ipynb`)**
 
