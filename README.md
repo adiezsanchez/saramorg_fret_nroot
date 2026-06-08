@@ -1,6 +1,8 @@
-[![DOI](https://zenodo.org/badge/1204742984.svg)](https://doi.org/10.5281/zenodo.20205488)
-
 <h1>FRET-NroOT — Automatic tissue layer assignment of Arabidopsis root and FRET ratio calculation in the nuclear compartment</h1>
+
+[![DOI](https://img.shields.io/badge/DOI-10.5281/zenodo.20205488-blue.svg)](https://doi.org/10.5281/zenodo.20205488)
+[![License](https://img.shields.io/pypi/l/napari-accelerated-pixel-and-object-classification.svg?color=green)](https://github.com/adiezsanchez/brain_tissue_nuc_segm/blob/main/LICENSE)
+[![Development Status](https://img.shields.io/pypi/status/napari-accelerated-pixel-and-object-classification.svg)](https://en.wikipedia.org/wiki/Software_release_life_cycle#Alpha)
 
 A lightweight pipeline for automated 3D analysis of Arabidopsis thaliana root tissue structure and per-nucleus FRET ratio quantification, integrating segmentation, depth-based tissue mapping, and batch processing for imaging datasets.
 
